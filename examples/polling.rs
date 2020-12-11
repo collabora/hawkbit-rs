@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 use anyhow::Result;
-use hawkbit::DirectDeviceIntegration;
+use hawkbit::{DirectDeviceIntegration, Execution, Finished};
+use serde::Serialize;
 use structopt::StructOpt;
 use tokio::time::delay_for;
 
@@ -16,6 +17,12 @@ struct Opt {
     tenant: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct ConfigData {
+    #[serde(rename = "HwRevision")]
+    hw_revision: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let opt = Opt::from_args();
@@ -25,6 +32,17 @@ async fn main() -> Result<()> {
     loop {
         let reply = ddi.poll().await?;
         dbg!(&reply);
+
+        if let Some(request) = reply.config_data_request() {
+            println!("Uploading config data");
+            let data = ConfigData {
+                hw_revision: "1.0".to_string(),
+            };
+
+            request
+                .upload(Execution::Closed, Finished::Success, None, data)
+                .await?;
+        }
 
         let t = reply.polling_sleep()?;
         delay_for(t).await;

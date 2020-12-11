@@ -6,12 +6,14 @@
 use std::fmt;
 use std::time::Duration;
 
+use reqwest::Client;
 use serde::Deserialize;
 
+use crate::config_data::Request;
 use crate::direct_device_integration::Error;
 
 #[derive(Debug, Deserialize)]
-pub struct Reply {
+pub(crate) struct ReplyInternal {
     config: Config,
     #[serde(rename = "_links")]
     links: Option<Links>,
@@ -44,10 +46,29 @@ impl fmt::Display for Link {
         write!(f, "{}", self.href)
     }
 }
+#[derive(Debug)]
+pub struct Reply {
+    reply: ReplyInternal,
+    client: Client,
+}
 
 impl Reply {
+    pub(crate) fn new(reply: ReplyInternal, client: Client) -> Self {
+        Self { reply, client }
+    }
+
     pub fn polling_sleep(&self) -> Result<Duration, Error> {
-        self.config.polling.as_duration()
+        self.reply.config.polling.as_duration()
+    }
+
+    pub fn config_data_request(&self) -> Option<Request> {
+        match &self.reply.links {
+            Some(links) => links
+                .config_data
+                .as_ref()
+                .map(|l| Request::new(self.client.clone(), l.href.to_string())),
+            None => None,
+        }
     }
 }
 

@@ -25,6 +25,8 @@ pub enum Error {
     ReqwestError(#[from] reqwest::Error),
     #[error("Failed to parse polling sleep")]
     InvalidSleep,
+    #[error("No config data has been requested from server")]
+    NoConfigData,
 }
 
 impl DirectDeviceIntegration {
@@ -52,7 +54,7 @@ impl DirectDeviceIntegration {
         let reply = self.client.get(self.base_url.clone()).send().await?;
         reply.error_for_status_ref()?;
 
-        let reply = reply.json::<poll::Reply>().await?;
-        Ok(reply)
+        let reply = reply.json::<poll::ReplyInternal>().await?;
+        Ok(poll::Reply::new(reply, self.client.clone()))
     }
 }
