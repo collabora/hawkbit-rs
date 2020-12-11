@@ -1,7 +1,7 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+// Copyright 2020, Collabora Ltd.
+// SPDX-License-Identifier: MIT
+
+pub mod direct_device_integration;
+pub use direct_device_integration::DirectDeviceIntegration;
+
+mod poll;
