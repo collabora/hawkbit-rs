@@ -3,6 +3,9 @@
 
 // Structures when querying deployment
 
+use std::fs::{DirBuilder, File};
+use std::path::{Path, PathBuf};
+
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -43,7 +46,7 @@ struct Deployment {
     update: Type,
     #[serde(rename = "maintenanceWindow")]
     maintenance_window: Option<MaintenanceWindow>,
-    chunks: Vec<Chunk>,
+    chunks: Vec<ChunkInternal>,
 }
 
 #[derive(Debug, Deserialize, Copy, Clone)]
@@ -62,13 +65,13 @@ pub enum MaintenanceWindow {
 }
 
 #[derive(Debug, Deserialize)]
-struct Chunk {
+struct ChunkInternal {
     #[serde(default)]
     metadata: Vec<Metadata>,
     part: String,
     name: String,
     version: String,
-    artifacts: Vec<Artifact>,
+    artifacts: Vec<ArtifactInternal>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,7 +81,7 @@ struct Metadata {
 }
 
 #[derive(Debug, Deserialize)]
-struct Artifact {
+struct ArtifactInternal {
     filename: String,
     hashes: Hashes,
     size: u32,
@@ -86,7 +89,7 @@ struct Artifact {
     links: Links,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Hashes {
     sha1: String,
     md5: String,
@@ -129,5 +132,134 @@ impl Update {
 
     pub fn maintenance_window(&self) -> Option<MaintenanceWindow> {
         self.info.deployment.maintenance_window
+    }
+
+    pub fn chunks(&self) -> impl Iterator<Item = Chunk> {
+        let client = self.client.clone();
+
+        self.info
+            .deployment
+            .chunks
+            .iter()
+            .map(move |c| Chunk::new(c, client.clone()))
+    }
+
+    pub async fn download(&self, dir: &Path) -> Result<Vec<DownloadedArtifact>, Error> {
+        let mut result = Vec::new();
+        for c in self.chunks() {
+            let downloaded = c.download(dir).await?;
+            result.extend(downloaded);
+        }
+
+        Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct Chunk<'a> {
+    chunk: &'a ChunkInternal,
+    client: Client,
+}
+
+impl<'a> Chunk<'a> {
+    fn new(chunk: &'a ChunkInternal, client: Client) -> Self {
+        Self { chunk, client }
+    }
+
+    pub fn part(&self) -> &str {
+        &self.chunk.part
+    }
+
+    pub fn name(&self) -> &str {
+        &self.chunk.name
+    }
+
+    pub fn version(&self) -> &str {
+        &self.chunk.version
+    }
+
+    pub fn artifacts(&self) -> impl Iterator<Item = Artifact> {
+        let client = self.client.clone();
+
+        self.chunk
+            .artifacts
+            .iter()
+            .map(move |a| Artifact::new(a, client.clone()))
+    }
+
+    pub async fn download(&'a self, dir: &Path) -> Result<Vec<DownloadedArtifact>, Error> {
+        let mut dir = dir.to_path_buf();
+        dir.push(self.name());
+        let mut result = Vec::new();
+
+        for a in self.artifacts() {
+            let downloaded = a.download(&dir).await?;
+            result.push(downloaded);
+        }
+
+        Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct Artifact<'a> {
+    artifact: &'a ArtifactInternal,
+    client: Client,
+}
+
+impl<'a> Artifact<'a> {
+    fn new(artifact: &'a ArtifactInternal, client: Client) -> Self {
+        Self { artifact, client }
+    }
+
+    pub fn filename(&self) -> &str {
+        &self.artifact.filename
+    }
+
+    pub fn size(&self) -> u32 {
+        self.artifact.size
+    }
+
+    pub async fn download(&'a self, dir: &Path) -> Result<DownloadedArtifact, Error> {
+        let resp = self
+            .client
+            .get(&self.artifact.links.download_http.to_string())
+            .send()
+            .await?;
+
+        resp.error_for_status_ref()?;
+
+        if !dir.exists() {
+            DirBuilder::new().recursive(true).create(dir)?;
+        }
+
+        let mut file_name = dir.to_path_buf();
+        file_name.push(self.filename());
+        let mut dest = File::create(&file_name)?;
+
+        let content = resp.bytes().await?;
+        // FIXME: async copy?
+        std::io::copy(&mut content.as_ref(), &mut dest)?;
+
+        Ok(DownloadedArtifact::new(
+            file_name,
+            self.artifact.hashes.clone(),
+        ))
+    }
+}
+
+#[derive(Debug)]
+pub struct DownloadedArtifact {
+    file: PathBuf,
+    hashes: Hashes,
+}
+
+impl<'a> DownloadedArtifact {
+    fn new(file: PathBuf, hashes: Hashes) -> Self {
+        Self { file, hashes }
+    }
+
+    pub fn file(&self) -> &PathBuf {
+        &self.file
     }
 }

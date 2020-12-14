@@ -1,6 +1,8 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
+use std::path::Path;
+
 use anyhow::Result;
 use hawkbit::{DirectDeviceIntegration, Execution, Finished};
 use serde::Serialize;
@@ -49,6 +51,9 @@ async fn main() -> Result<()> {
 
             let update = update.fetch().await?;
             dbg!(&update);
+
+            let artifacts = update.download(Path::new("./download/")).await?;
+            dbg!(&artifacts);
         }
 
         let t = reply.polling_sleep()?;

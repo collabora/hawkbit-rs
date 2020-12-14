@@ -27,6 +27,8 @@ pub enum Error {
     InvalidSleep,
     #[error("No config data has been requested from server")]
     NoConfigData,
+    #[error("Failed to download update")]
+    Io(#[from] std::io::Error),
 }
 
 impl DirectDeviceIntegration {
