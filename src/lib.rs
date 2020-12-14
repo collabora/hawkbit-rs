@@ -7,4 +7,5 @@ pub use direct_device_integration::DirectDeviceIntegration;
 mod config_data;
 pub use config_data::{Execution, Finished, Mode};
 
+mod deployment_base;
 mod poll;

@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::config_data::Request;
+use crate::deployment_base::UpdatePreFetch;
 use crate::direct_device_integration::Error;
 
 #[derive(Debug, Deserialize)]
@@ -67,6 +68,16 @@ impl Reply {
                 .config_data
                 .as_ref()
                 .map(|l| Request::new(self.client.clone(), l.href.to_string())),
+            None => None,
+        }
+    }
+
+    pub fn update(&self) -> Option<UpdatePreFetch> {
+        match &self.reply.links {
+            Some(links) => links
+                .deployment_base
+                .as_ref()
+                .map(|l| UpdatePreFetch::new(self.client.clone(), l.href.to_string())),
             None => None,
         }
     }

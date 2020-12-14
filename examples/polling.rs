@@ -44,6 +44,13 @@ async fn main() -> Result<()> {
                 .await?;
         }
 
+        if let Some(update) = reply.update() {
+            println!("Pending update");
+
+            let update = update.fetch().await?;
+            dbg!(&update);
+        }
+
         let t = reply.polling_sleep()?;
         delay_for(t).await;
     }
