@@ -54,6 +54,15 @@ async fn main() -> Result<()> {
 
             let artifacts = update.download(Path::new("./download/")).await?;
             dbg!(&artifacts);
+
+            for artifact in artifacts {
+                #[cfg(feature = "hash-md5")]
+                artifact.check_md5()?;
+                #[cfg(feature = "hash-sha1")]
+                artifact.check_sha1()?;
+                #[cfg(feature = "hash-sha256")]
+                artifact.check_sha256()?;
+            }
         }
 
         let t = reply.polling_sleep()?;

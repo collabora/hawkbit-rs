@@ -254,6 +254,31 @@ pub struct DownloadedArtifact {
     hashes: Hashes,
 }
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "hash-digest")] {
+        use digest::Digest;
+        use thiserror::Error;
+
+        #[derive(Error, Debug)]
+        pub enum ChecksumError {
+            #[error("Failed to compute checksum")]
+            Io(#[from] std::io::Error),
+            #[error("Checksum {0} does not match")]
+            Invalid(CheckSumType),
+        }
+
+        #[derive(Debug, strum::Display)]
+        pub enum CheckSumType {
+            #[cfg(feature = "hash-md5")]
+            Md5,
+            #[cfg(feature = "hash-sha1")]
+            Sha1,
+            #[cfg(feature = "hash-sha256")]
+            Sha256,
+        }
+    }
+}
+
 impl<'a> DownloadedArtifact {
     fn new(file: PathBuf, hashes: Hashes) -> Self {
         Self { file, hashes }
@@ -261,5 +286,52 @@ impl<'a> DownloadedArtifact {
 
     pub fn file(&self) -> &PathBuf {
         &self.file
+    }
+
+    #[cfg(feature = "hash-digest")]
+    fn read_content(&self) -> Result<String, std::io::Error> {
+        use std::io::prelude::*;
+
+        let mut content = String::new();
+        let mut file = File::open(&self.file)?;
+        file.read_to_string(&mut content)?;
+
+        Ok(content)
+    }
+
+    #[cfg(feature = "hash-md5")]
+    pub fn check_md5(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content()?;
+        let digest = md5::Md5::digest(content.as_bytes());
+
+        if format!("{:x}", digest) == self.hashes.md5 {
+            Ok(())
+        } else {
+            Err(ChecksumError::Invalid(CheckSumType::Md5))
+        }
+    }
+
+    #[cfg(feature = "hash-sha1")]
+    pub fn check_sha1(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content()?;
+        let digest = sha1::Sha1::digest(content.as_bytes());
+
+        if format!("{:x}", digest) == self.hashes.sha1 {
+            Ok(())
+        } else {
+            Err(ChecksumError::Invalid(CheckSumType::Sha1))
+        }
+    }
+
+    #[cfg(feature = "hash-sha256")]
+    pub fn check_sha256(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content()?;
+        let digest = sha2::Sha256::digest(content.as_bytes());
+
+        if format!("{:x}", digest) == self.hashes.sha256 {
+            Ok(())
+        } else {
+            Err(ChecksumError::Invalid(CheckSumType::Sha256))
+        }
     }
 }
