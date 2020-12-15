@@ -338,12 +338,12 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    fn read_content(&self) -> Result<String, std::io::Error> {
+    fn read_content(&self) -> Result<Vec<u8>, std::io::Error> {
         use std::io::prelude::*;
 
-        let mut content = String::new();
+        let mut content = Vec::new();
         let mut file = File::open(&self.file)?;
-        file.read_to_string(&mut content)?;
+        file.read_to_end(&mut content)?;
 
         Ok(content)
     }
@@ -351,7 +351,7 @@ impl<'a> DownloadedArtifact {
     #[cfg(feature = "hash-md5")]
     pub fn check_md5(&self) -> Result<(), ChecksumError> {
         let content = self.read_content()?;
-        let digest = md5::Md5::digest(content.as_bytes());
+        let digest = md5::Md5::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.md5 {
             Ok(())
@@ -363,7 +363,7 @@ impl<'a> DownloadedArtifact {
     #[cfg(feature = "hash-sha1")]
     pub fn check_sha1(&self) -> Result<(), ChecksumError> {
         let content = self.read_content()?;
-        let digest = sha1::Sha1::digest(content.as_bytes());
+        let digest = sha1::Sha1::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.sha1 {
             Ok(())
@@ -375,7 +375,7 @@ impl<'a> DownloadedArtifact {
     #[cfg(feature = "hash-sha256")]
     pub fn check_sha256(&self) -> Result<(), ChecksumError> {
         let content = self.read_content()?;
-        let digest = sha2::Sha256::digest(content.as_bytes());
+        let digest = sha2::Sha256::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.sha256 {
             Ok(())
