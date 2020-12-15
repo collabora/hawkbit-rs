@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
             };
 
             request
-                .upload(Execution::Closed, Finished::Success, None, data)
+                .upload(Execution::Closed, Finished::Success, None, data, vec![])
                 .await?;
         }
 

@@ -26,8 +26,10 @@ impl Request {
         finished: Finished,
         mode: Option<Mode>,
         data: T,
+        details: Vec<&str>,
     ) -> Result<(), Error> {
-        let data = ConfigData::new(execution, finished, mode, data);
+        let details = details.iter().map(|m| m.to_string()).collect();
+        let data = ConfigData::new(execution, finished, mode, data, details);
         let reply = self.client.put(&self.url).json(&data).send().await?;
 
         reply.error_for_status()?;
@@ -69,14 +71,14 @@ impl<T: Serialize> ConfigData<T> {
         finished: Finished,
         mode: Option<Mode>,
         data: T,
+        details: Vec<String>,
     ) -> Self {
         Self {
             data,
             status: Status {
                 execution,
                 result: ResultT { finished },
-                // TODO: add API to pass details?
-                details: vec![],
+                details,
             },
             mode,
         }
