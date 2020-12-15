@@ -9,15 +9,13 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{DirBuilder, File},
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
 };
 use url::Url;
 
 use crate::common::{Execution, Finished, Link};
 use crate::direct_device_integration::Error;
 use crate::feedback::Feedback;
-
-const HASH_BUFFER_SIZE: usize = 4096;
 
 #[derive(Debug)]
 pub struct UpdatePreFetch {
@@ -313,6 +311,8 @@ cfg_if::cfg_if! {
         use digest::Digest;
         use thiserror::Error;
 
+        const HASH_BUFFER_SIZE: usize = 4096;
+
         #[derive(Error, Debug)]
         pub enum ChecksumError {
             #[error("Failed to compute checksum")]
@@ -344,6 +344,8 @@ impl<'a> DownloadedArtifact {
 
     #[cfg(feature = "hash-digest")]
     pub async fn hash<T: Digest>(&self, mut hasher: T) -> Result<digest::Output<T>, ChecksumError> {
+        use tokio::io::AsyncReadExt;
+
         let mut file = File::open(&self.file).await?;
         let mut buffer = [0; HASH_BUFFER_SIZE];
 
