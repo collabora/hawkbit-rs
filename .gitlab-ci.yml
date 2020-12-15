@@ -58,7 +58,7 @@ pages:
     - "lightweight"
   stage: deploy
   script:
-    - cargo doc
+    - cargo doc --all-features
     - mv target/doc public
   artifacts:
     paths:
