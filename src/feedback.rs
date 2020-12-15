@@ -10,7 +10,6 @@ use crate::common::{Execution, Finished};
 #[derive(Debug, Serialize)]
 pub(crate) struct Feedback<T: Serialize> {
     id: String,
-    // TODO: time, format is unclear https://github.com/eclipse/hawkbit/issues/191
     status: Status<T>,
 }
 #[derive(Debug, Serialize)]
