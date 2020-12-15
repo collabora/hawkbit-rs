@@ -17,6 +17,8 @@ use crate::common::{Execution, Finished, Link};
 use crate::direct_device_integration::Error;
 use crate::feedback::Feedback;
 
+const HASH_BUFFER_SIZE: usize = 4096;
+
 #[derive(Debug)]
 pub struct UpdatePreFetch {
     client: Client,
@@ -341,18 +343,24 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    async fn read_content(&self) -> Result<Vec<u8>, std::io::Error> {
-        let mut content = Vec::new();
+    pub async fn hash<T: Digest>(&self, mut hasher: T) -> Result<digest::Output<T>, ChecksumError> {
         let mut file = File::open(&self.file).await?;
-        file.read_to_end(&mut content).await?;
+        let mut buffer = [0; HASH_BUFFER_SIZE];
 
-        Ok(content)
+        loop {
+            let n = file.read(&mut buffer[..]).await?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buffer[..n]);
+        }
+
+        Ok(hasher.finalize())
     }
 
     #[cfg(feature = "hash-md5")]
     pub async fn check_md5(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content().await?;
-        let digest = md5::Md5::digest(&content);
+        let digest = self.hash(md5::Md5::new()).await?;
 
         if format!("{:x}", digest) == self.hashes.md5 {
             Ok(())
@@ -363,8 +371,7 @@ impl<'a> DownloadedArtifact {
 
     #[cfg(feature = "hash-sha1")]
     pub async fn check_sha1(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content().await?;
-        let digest = sha1::Sha1::digest(&content);
+        let digest = self.hash(sha1::Sha1::new()).await?;
 
         if format!("{:x}", digest) == self.hashes.sha1 {
             Ok(())
@@ -375,8 +382,7 @@ impl<'a> DownloadedArtifact {
 
     #[cfg(feature = "hash-sha256")]
     pub async fn check_sha256(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content().await?;
-        let digest = sha2::Sha256::digest(&content);
+        let digest = self.hash(sha2::Sha256::new()).await?;
 
         if format!("{:x}", digest) == self.hashes.sha256 {
             Ok(())
