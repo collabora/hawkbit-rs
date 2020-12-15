@@ -6,6 +6,7 @@
 use reqwest::Client;
 use serde::Serialize;
 
+use crate::common::{Execution, Finished};
 use crate::direct_device_integration::Error;
 
 #[derive(Debug)]
@@ -52,25 +53,6 @@ struct Status {
 #[derive(Debug, Serialize)]
 pub(crate) struct ResultT {
     finished: Finished,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Execution {
-    Closed,
-    Proceeding,
-    Canceled,
-    Scheduled,
-    Rejected,
-    Resumed,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Finished {
-    Success,
-    Failure,
-    None,
 }
 
 #[derive(Debug, Serialize)]

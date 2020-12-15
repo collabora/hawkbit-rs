@@ -3,12 +3,12 @@
 
 // Structures used to poll the status
 
-use std::fmt;
 use std::time::Duration;
 
 use reqwest::Client;
 use serde::Deserialize;
 
+use crate::common::Link;
 use crate::config_data::Request;
 use crate::deployment_base::UpdatePreFetch;
 use crate::direct_device_integration::Error;
@@ -37,16 +37,6 @@ pub struct Links {
     cancel_action: Option<Link>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Link {
-    href: String,
-}
-
-impl fmt::Display for Link {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.href)
-    }
-}
 #[derive(Debug)]
 pub struct Reply {
     reply: ReplyInternal,
@@ -67,7 +57,7 @@ impl Reply {
             Some(links) => links
                 .config_data
                 .as_ref()
-                .map(|l| Request::new(self.client.clone(), l.href.to_string())),
+                .map(|l| Request::new(self.client.clone(), l.to_string())),
             None => None,
         }
     }
@@ -77,7 +67,7 @@ impl Reply {
             Some(links) => links
                 .deployment_base
                 .as_ref()
-                .map(|l| UpdatePreFetch::new(self.client.clone(), l.href.to_string())),
+                .map(|l| UpdatePreFetch::new(self.client.clone(), l.to_string())),
             None => None,
         }
     }

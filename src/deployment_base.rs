@@ -10,10 +10,9 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::config_data::{Execution, Finished};
+use crate::common::{Execution, Finished, Link};
 use crate::direct_device_integration::Error;
 use crate::feedback::Feedback;
-use crate::poll::Link;
 
 #[derive(Debug)]
 pub struct UpdatePreFetch {
