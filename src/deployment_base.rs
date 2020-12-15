@@ -7,9 +7,12 @@ use std::fs::{DirBuilder, File};
 use std::path::{Path, PathBuf};
 
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use url::Url;
 
+use crate::config_data::{Execution, Finished};
 use crate::direct_device_integration::Error;
+use crate::feedback::Feedback;
 use crate::poll::Link;
 
 #[derive(Debug)]
@@ -28,7 +31,7 @@ impl UpdatePreFetch {
         reply.error_for_status_ref()?;
 
         let reply = reply.json::<Reply>().await?;
-        Ok(Update::new(self.client, reply))
+        Ok(Update::new(self.client, reply, self.url))
     }
 }
 
@@ -115,11 +118,12 @@ struct ActionHistory {
 pub struct Update {
     client: Client,
     info: Reply,
+    url: String,
 }
 
 impl Update {
-    fn new(client: Client, info: Reply) -> Self {
-        Self { client, info }
+    fn new(client: Client, info: Reply, url: String) -> Self {
+        Self { client, info, url }
     }
 
     pub fn download_type(&self) -> Type {
@@ -152,6 +156,52 @@ impl Update {
         }
 
         Ok(result)
+    }
+
+    pub async fn send_feedback_with_progress<T: Serialize>(
+        &self,
+        execution: Execution,
+        finished: Finished,
+        progress: Option<T>,
+        details: Vec<&str>,
+    ) -> Result<(), Error> {
+        let mut url: Url = self.url.parse()?;
+        {
+            match url.path_segments_mut() {
+                Err(_) => {
+                    return Err(Error::ParseUrlError(
+                        url::ParseError::SetHostOnCannotBeABaseUrl,
+                    ))
+                }
+                Ok(mut paths) => {
+                    paths.push("feedback");
+                }
+            }
+        }
+        url.set_query(None);
+
+        let details = details.iter().map(|m| m.to_string()).collect();
+        let feedback = Feedback::new(&self.info.id, execution, finished, progress, details);
+
+        let reply = self
+            .client
+            .post(&url.to_string())
+            .json(&feedback)
+            .send()
+            .await?;
+        reply.error_for_status()?;
+
+        Ok(())
+    }
+
+    pub async fn send_feedback(
+        &self,
+        execution: Execution,
+        finished: Finished,
+        details: Vec<&str>,
+    ) -> Result<(), Error> {
+        self.send_feedback_with_progress::<bool>(execution, finished, None, details)
+            .await
     }
 }
 

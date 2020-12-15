@@ -50,7 +50,7 @@ struct Status {
 }
 
 #[derive(Debug, Serialize)]
-struct ResultT {
+pub(crate) struct ResultT {
     finished: Finished,
 }
 

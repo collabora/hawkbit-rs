@@ -52,6 +52,10 @@ async fn main() -> Result<()> {
             let update = update.fetch().await?;
             dbg!(&update);
 
+            update
+                .send_feedback(Execution::Proceeding, Finished::None, vec!["Downloading"])
+                .await?;
+
             let artifacts = update.download(Path::new("./download/")).await?;
             dbg!(&artifacts);
 
@@ -63,6 +67,10 @@ async fn main() -> Result<()> {
                 #[cfg(feature = "hash-sha256")]
                 artifact.check_sha256()?;
             }
+
+            update
+                .send_feedback(Execution::Closed, Finished::Success, vec![])
+                .await?;
         }
 
         let t = reply.polling_sleep()?;
