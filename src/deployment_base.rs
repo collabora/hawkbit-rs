@@ -9,7 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{DirBuilder, File},
-    io::AsyncReadExt,
+    io::{AsyncReadExt, AsyncWriteExt},
 };
 use url::Url;
 
@@ -273,7 +273,7 @@ impl<'a> Artifact<'a> {
     }
 
     pub async fn download(&'a self, dir: &Path) -> Result<DownloadedArtifact, Error> {
-        let resp = self
+        let mut resp = self
             .client
             .get(&self.artifact.links.download_http.to_string())
             .send()
@@ -289,8 +289,9 @@ impl<'a> Artifact<'a> {
         file_name.push(self.filename());
         let mut dest = File::create(&file_name).await?;
 
-        let content = resp.bytes().await?;
-        tokio::io::copy(&mut content.as_ref(), &mut dest).await?;
+        while let Some(chunk) = resp.chunk().await? {
+            dest.write_all(&chunk).await?;
+        }
 
         Ok(DownloadedArtifact::new(
             file_name,
