@@ -42,8 +42,8 @@ pub(crate) struct ConfigData<T: Serialize> {
     status: Status,
     mode: Option<Mode>,
     data: T,
-    // TODO: id?
-    // TODO: time
+    // skip 'id' as its semantic is unclear and it's left empty in the doc
+    // TODO: time, format is unclear https://github.com/eclipse/hawkbit/issues/191
 }
 #[derive(Debug, Serialize)]
 struct Status {
