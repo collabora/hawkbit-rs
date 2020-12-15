@@ -42,7 +42,7 @@ test:
     - "lightweight"
   stage: test
   script:
-    - cargo test -- --color=always
+    - cargo test --all-features -- --color=always
 
 clippy:
   extends: .dist-fedora
