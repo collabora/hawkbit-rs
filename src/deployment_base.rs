@@ -3,11 +3,14 @@
 
 // Structures when querying deployment
 
-use std::fs::{DirBuilder, File};
 use std::path::{Path, PathBuf};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::{
+    fs::{DirBuilder, File},
+    io::AsyncReadExt,
+};
 use url::Url;
 
 use crate::common::{Execution, Finished, Link};
@@ -279,16 +282,15 @@ impl<'a> Artifact<'a> {
         resp.error_for_status_ref()?;
 
         if !dir.exists() {
-            DirBuilder::new().recursive(true).create(dir)?;
+            DirBuilder::new().recursive(true).create(dir).await?;
         }
 
         let mut file_name = dir.to_path_buf();
         file_name.push(self.filename());
-        let mut dest = File::create(&file_name)?;
+        let mut dest = File::create(&file_name).await?;
 
         let content = resp.bytes().await?;
-        // FIXME: async copy?
-        std::io::copy(&mut content.as_ref(), &mut dest)?;
+        tokio::io::copy(&mut content.as_ref(), &mut dest).await?;
 
         Ok(DownloadedArtifact::new(
             file_name,
@@ -338,19 +340,17 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    fn read_content(&self) -> Result<Vec<u8>, std::io::Error> {
-        use std::io::prelude::*;
-
+    async fn read_content(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut content = Vec::new();
-        let mut file = File::open(&self.file)?;
-        file.read_to_end(&mut content)?;
+        let mut file = File::open(&self.file).await?;
+        file.read_to_end(&mut content).await?;
 
         Ok(content)
     }
 
     #[cfg(feature = "hash-md5")]
-    pub fn check_md5(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content()?;
+    pub async fn check_md5(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content().await?;
         let digest = md5::Md5::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.md5 {
@@ -361,8 +361,8 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-sha1")]
-    pub fn check_sha1(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content()?;
+    pub async fn check_sha1(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content().await?;
         let digest = sha1::Sha1::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.sha1 {
@@ -373,8 +373,8 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-sha256")]
-    pub fn check_sha256(&self) -> Result<(), ChecksumError> {
-        let content = self.read_content()?;
+    pub async fn check_sha256(&self) -> Result<(), ChecksumError> {
+        let content = self.read_content().await?;
         let digest = sha2::Sha256::digest(&content);
 
         if format!("{:x}", digest) == self.hashes.sha256 {

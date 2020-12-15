@@ -61,11 +61,11 @@ async fn main() -> Result<()> {
 
             for artifact in artifacts {
                 #[cfg(feature = "hash-md5")]
-                artifact.check_md5()?;
+                artifact.check_md5().await?;
                 #[cfg(feature = "hash-sha1")]
-                artifact.check_sha1()?;
+                artifact.check_sha1().await?;
                 #[cfg(feature = "hash-sha256")]
-                artifact.check_sha256()?;
+                artifact.check_sha256().await?;
             }
 
             update
