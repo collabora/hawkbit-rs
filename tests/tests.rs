@@ -10,6 +10,10 @@ use serde_json::{json, Value};
 mod mock_ddi;
 use mock_ddi::{Server, ServerBuilder, Target};
 
+fn init() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}
+
 fn add_target<'a>(
     server: &'a Server,
     name: &str,
@@ -30,6 +34,8 @@ fn add_target<'a>(
 
 #[tokio::test]
 async fn poll() {
+    init();
+
     let server = ServerBuilder::default().tenant("my-tenant").build();
     let (client, target) = add_target(&server, "Target1", None);
 
@@ -47,6 +53,8 @@ async fn poll() {
 
 #[tokio::test]
 async fn upload_config() {
+    init();
+
     let server = ServerBuilder::default().build();
     let expected_config_data = json!({
         "mode" : "merge",
