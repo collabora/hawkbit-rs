@@ -25,6 +25,7 @@ sha2 = { version = "0.9", optional = true }
 [dev-dependencies]
 structopt = "0.3"
 anyhow = "1.0"
+httpmock = "0.5"
 
 [features]
 hash-digest= ["digest"]
