@@ -3,13 +3,19 @@
 
 use std::time::Duration;
 
-use hawkbit::DirectDeviceIntegration;
+use hawkbit::{DirectDeviceIntegration, Execution, Finished, Mode};
+use serde::Serialize;
+use serde_json::{json, Value};
 
 mod mock_ddi;
 use mock_ddi::{Server, ServerBuilder, Target};
 
-fn add_target<'a>(server: &'a Server, name: &str) -> (DirectDeviceIntegration, Target<'a>) {
-    let target = server.add_target(name);
+fn add_target<'a>(
+    server: &'a Server,
+    name: &str,
+    expected_config_data: Option<Value>,
+) -> (DirectDeviceIntegration, Target<'a>) {
+    let target = server.add_target(name, expected_config_data);
 
     let client = DirectDeviceIntegration::new(
         &server.base_url(),
@@ -25,7 +31,7 @@ fn add_target<'a>(server: &'a Server, name: &str) -> (DirectDeviceIntegration, T
 #[tokio::test]
 async fn poll() {
     let server = ServerBuilder::default().tenant("my-tenant").build();
-    let (client, target) = add_target(&server, "Target1");
+    let (client, target) = add_target(&server, "Target1", None);
 
     assert_eq!(target.poll_hits(), 0);
 
@@ -37,4 +43,49 @@ async fn poll() {
         assert!(reply.update().is_none());
         assert_eq!(target.poll_hits(), i + 1);
     }
+}
+
+#[tokio::test]
+async fn upload_config() {
+    let server = ServerBuilder::default().build();
+    let expected_config_data = json!({
+        "mode" : "merge",
+        "data" : {
+            "awesome" : true,
+        },
+        "status" : {
+            "result" : {
+            "finished" : "success"
+            },
+            "execution" : "closed",
+            "details" : [ "Some stuffs" ]
+        }
+    });
+    let (client, target) = add_target(&server, "Target1", Some(expected_config_data));
+
+    let reply = client.poll().await.expect("poll failed");
+    let config_data_req = reply
+        .config_data_request()
+        .expect("missing config data request");
+
+    #[derive(Serialize)]
+    struct Config {
+        awesome: bool,
+    }
+
+    let config = Config { awesome: true };
+
+    config_data_req
+        .upload(
+            Execution::Closed,
+            Finished::Success,
+            Some(Mode::Merge),
+            config,
+            vec!["Some stuffs"],
+        )
+        .await
+        .expect("upload config failed");
+
+    assert_eq!(target.poll_hits(), 1);
+    assert_eq!(target.config_data_hits(), 1);
 }
