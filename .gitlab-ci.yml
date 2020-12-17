@@ -1,59 +1,22 @@
-include:
-  - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/3f4e4de1ef6bc5b9ac0f957e5239ecf563b604d7/templates/fedora.yml'
+image: rust
 
 stages:
-  - container
-  - lint
   - test
   - deploy
 
-.fedora:
-  variables:
-    FDO_DISTRIBUTION_VERSION: '33'
-    # Update this tag to regenerate the container
-    FDO_DISTRIBUTION_TAG: '2020-12-11.3'
-
-build-fedora-container:
-  extends:
-    - .fdo.container-build@fedora
-    - .fedora
-  tags:
-    - "ultra-heavyweight"
-  stage: container
-  variables:
-    FDO_DISTRIBUTION_PACKAGES: "openssl-devel cargo rustfmt clippy"
-
-.dist-fedora:
-  extends:
-    - .fdo.distribution-image@fedora
-    - .fedora
-
-rustfmt:
-  extends: .dist-fedora
+test:
   tags:
     - "lightweight"
-  stage: lint
+  stage: test
+  before_script:
+    - rustup component add rustfmt
+    - rustup component add clippy
   script:
     - cargo fmt -- --color=always --check
-
-test:
-  extends: .dist-fedora
-  tags:
-    - "lightweight"
-  stage: test
-  script:
     - cargo test --all-features -- --color=always
-
-clippy:
-  extends: .dist-fedora
-  tags:
-    - "lightweight"
-  stage: test
-  script:
     - cargo clippy
 
 pages:
-  extends: .dist-fedora
   tags:
     - "lightweight"
   stage: deploy
