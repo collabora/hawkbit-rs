@@ -20,6 +20,10 @@ pages:
   tags:
     - "lightweight"
   stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $PIPELINE_BRANCH != $CI_DEFAULT_BRANCH
+      when: never
   script:
     - cargo doc --all-features
     - mv target/doc public
