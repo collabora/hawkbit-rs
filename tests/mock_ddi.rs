@@ -7,6 +7,8 @@ use httpmock::{
 };
 use serde_json::{json, Map, Value};
 
+use hawkbit::{MaintenanceWindow, Type};
+
 pub struct ServerBuilder {
     tenant: String,
 }
@@ -44,7 +46,12 @@ impl Server {
         self.server.base_url()
     }
 
-    pub fn add_target(&self, name: &str, expected_config_data: Option<Value>) -> Target {
+    pub fn add_target(
+        &self,
+        name: &str,
+        expected_config_data: Option<Value>,
+        deployment: Option<Deployment>,
+    ) -> Target {
         let key = format!("Key{}", name);
         let mut links = Map::new();
 
@@ -70,6 +77,29 @@ impl Server {
             None => None,
         };
 
+        let deployment = deployment.map(|deploy| {
+            let deploy_path = self.server.url(format!(
+                "/DEFAULT/controller/v1/{}/deploymentBase/{}",
+                name, deploy.id
+            ));
+            links.insert("deploymentBase".into(), json!({ "href": deploy_path }));
+
+            let response = deploy.json();
+
+            self.server.mock(|when, then| {
+                when.method(GET)
+                    .path(format!(
+                        "/DEFAULT/controller/v1/{}/deploymentBase/{}",
+                        name, deploy.id
+                    ))
+                    .header("Authorization", &format!("TargetToken {}", key));
+
+                then.status(200)
+                    .header("Content-Type", "application/json")
+                    .json_body(response);
+            })
+        });
+
         let response = json!({
             "config": {
                 "polling": {
@@ -94,6 +124,7 @@ impl Server {
             key,
             poll,
             config_data,
+            deployment,
         }
     }
 }
@@ -103,6 +134,7 @@ pub struct Target<'a> {
     pub key: String,
     poll: MockRef<'a>,
     config_data: Option<MockRef<'a>>,
+    deployment: Option<MockRef<'a>>,
 }
 
 impl<'a> Target<'a> {
@@ -112,5 +144,70 @@ impl<'a> Target<'a> {
 
     pub fn config_data_hits(&self) -> usize {
         self.config_data.as_ref().unwrap().hits()
+    }
+
+    pub fn deployment_hits(&self) -> usize {
+        self.deployment.as_ref().unwrap().hits()
+    }
+}
+
+pub struct DeploymentBuilder {
+    id: String,
+    download_type: Type,
+    update_type: Type,
+    maintenance_window: Option<MaintenanceWindow>,
+}
+pub struct Deployment {
+    id: String,
+    download_type: Type,
+    update_type: Type,
+    maintenance_window: Option<MaintenanceWindow>,
+}
+
+impl DeploymentBuilder {
+    pub fn new(id: &str, download_type: Type, update_type: Type) -> Self {
+        Self {
+            id: id.to_string(),
+            download_type,
+            update_type,
+            maintenance_window: None,
+        }
+    }
+
+    pub fn maintenance_window(self, maintenance_window: MaintenanceWindow) -> Self {
+        let mut builder = self;
+        builder.maintenance_window = Some(maintenance_window);
+        builder
+    }
+
+    // TODO: chunks
+
+    pub fn build(self) -> Deployment {
+        Deployment {
+            id: self.id,
+            download_type: self.download_type,
+            update_type: self.update_type,
+            maintenance_window: self.maintenance_window,
+        }
+    }
+}
+
+impl Deployment {
+    fn json(&self) -> serde_json::Value {
+        let mut j = json!({
+            "id": self.id,
+            "deployment": {
+                "download": self.download_type,
+                "update": self.update_type,
+                "chunks": []
+            }
+        });
+
+        if let Some(maintenance_window) = &self.maintenance_window {
+            let d = j.get_mut("deployment").unwrap().as_object_mut().unwrap();
+            d.insert("maintenanceWindow".to_string(), json!(maintenance_window));
+        }
+
+        j
     }
 }

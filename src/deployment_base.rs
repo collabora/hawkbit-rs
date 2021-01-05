@@ -54,7 +54,7 @@ struct Deployment {
     chunks: Vec<ChunkInternal>,
 }
 
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     Skip,
@@ -62,7 +62,7 @@ pub enum Type {
     Forced,
 }
 
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MaintenanceWindow {
     Available,
