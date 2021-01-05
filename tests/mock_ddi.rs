@@ -1,6 +1,8 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
+use std::path::PathBuf;
+
 use httpmock::{
     Method::{GET, PUT},
     MockRef, MockServer,
@@ -84,9 +86,10 @@ impl Server {
             ));
             links.insert("deploymentBase".into(), json!({ "href": deploy_path }));
 
-            let response = deploy.json();
+            let base_url = self.server.url("/download");
+            let response = deploy.json(&base_url);
 
-            self.server.mock(|when, then| {
+            let deploy_mock = self.server.mock(|when, then| {
                 when.method(GET)
                     .path(format!(
                         "/DEFAULT/controller/v1/{}/deploymentBase/{}",
@@ -97,7 +100,25 @@ impl Server {
                 then.status(200)
                     .header("Content-Type", "application/json")
                     .json_body(response);
-            })
+            });
+
+            // Serve the artifacts
+            for chunk in deploy.chunks.iter() {
+                for (artifact, _md5, _sha1, _sha256) in chunk.artifacts.iter() {
+                    let file_name = artifact.file_name().unwrap().to_str().unwrap();
+                    let path = format!("/download/{}", file_name);
+
+                    self.server.mock(|when, then| {
+                        when.method(GET)
+                            .path(path)
+                            .header("Authorization", &format!("TargetToken {}", key));
+
+                        then.status(200).body_from_file(artifact.to_str().unwrap());
+                    });
+                }
+            }
+
+            deploy_mock
         });
 
         let response = json!({
@@ -156,12 +177,14 @@ pub struct DeploymentBuilder {
     download_type: Type,
     update_type: Type,
     maintenance_window: Option<MaintenanceWindow>,
+    chunks: Vec<Chunk>,
 }
 pub struct Deployment {
     id: String,
     download_type: Type,
     update_type: Type,
     maintenance_window: Option<MaintenanceWindow>,
+    chunks: Vec<Chunk>,
 }
 
 impl DeploymentBuilder {
@@ -171,6 +194,7 @@ impl DeploymentBuilder {
             download_type,
             update_type,
             maintenance_window: None,
+            chunks: Vec::new(),
         }
     }
 
@@ -180,7 +204,33 @@ impl DeploymentBuilder {
         builder
     }
 
-    // TODO: chunks
+    pub fn chunk(
+        self,
+        part: &str,
+        version: &str,
+        name: &str,
+        artifacts: Vec<(PathBuf, &str, &str, &str)>,
+    ) -> Self {
+        let mut builder = self;
+
+        let artifacts = artifacts
+            .into_iter()
+            .map(|(path, md5, sha1, sha256)| {
+                assert!(path.exists());
+                (path, md5.to_string(), sha1.to_string(), sha256.to_string())
+            })
+            .collect();
+
+        let chunk = Chunk {
+            part: part.to_string(),
+            version: version.to_string(),
+            name: name.to_string(),
+            artifacts,
+        };
+        builder.chunks.push(chunk);
+
+        builder
+    }
 
     pub fn build(self) -> Deployment {
         Deployment {
@@ -188,18 +238,75 @@ impl DeploymentBuilder {
             download_type: self.download_type,
             update_type: self.update_type,
             maintenance_window: self.maintenance_window,
+            chunks: self.chunks,
         }
     }
 }
 
+pub struct Chunk {
+    part: String,
+    version: String,
+    name: String,
+    artifacts: Vec<(PathBuf, String, String, String)>, // (path, md5, sha1, sha256)
+}
+
+impl Chunk {
+    fn json(&self, base_url: &str) -> serde_json::Value {
+        let artifacts: Vec<serde_json::Value> = self
+            .artifacts
+            .iter()
+            .map(|(path, md5, sha1, sha256)| {
+                let meta = path.metadata().unwrap();
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                let download_url = format!("{}/{}", base_url, file_name);
+                // TODO: the md5 url is not served by the http server
+                let md5_url = format!("{}.MD5SUM", download_url);
+
+                json!({
+                    "filename": file_name,
+                    "hashes": {
+                        "sha1": sha1,
+                        "md5": md5,
+                        "sha256": sha256,
+                    },
+                    "size": meta.len(),
+                    "_links": {
+                        "download": {
+                            "href": download_url,
+                        },
+                        "download-http": {
+                            "href": download_url,
+                        },
+                        "md5sum": {
+                            "href": md5_url,
+                        },
+                        "md5sum-http": {
+                            "href": md5_url,
+                        },
+                    }
+                })
+            })
+            .collect();
+
+        json!({
+            "part": self.part,
+            "version": self.version,
+            "name": self.name,
+            "artifacts": artifacts,
+        })
+    }
+}
+
 impl Deployment {
-    fn json(&self) -> serde_json::Value {
+    fn json(&self, base_url: &str) -> serde_json::Value {
+        let chunks: Vec<serde_json::Value> = self.chunks.iter().map(|c| c.json(base_url)).collect();
+
         let mut j = json!({
             "id": self.id,
             "deployment": {
                 "download": self.download_type,
                 "update": self.update_type,
-                "chunks": []
+                "chunks": chunks,
             }
         });
 
