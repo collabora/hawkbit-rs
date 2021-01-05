@@ -175,3 +175,64 @@ async fn deployment() {
     #[cfg(feature = "hash-sha256")]
     artifacts[0].check_sha256().await.expect("invalid sha256");
 }
+
+#[tokio::test]
+async fn send_feedback() {
+    init();
+
+    let server = ServerBuilder::default().build();
+    let deploy = get_deployment();
+    let deploy_id = deploy.id.clone();
+    let (client, target) = add_target(&server, "Target1", None, Some(deploy));
+
+    let reply = client.poll().await.expect("poll failed");
+    let update = reply.update().expect("missing update");
+    let update = update.fetch().await.expect("failed to fetch update info");
+
+    // Send feedback without progress
+    let mut mock = server.expect_feedback(
+        &target,
+        &deploy_id,
+        Execution::Proceeding,
+        Finished::None,
+        None,
+        vec!["Downloading"],
+    );
+    assert_eq!(mock.hits(), 0);
+
+    update
+        .send_feedback(Execution::Proceeding, Finished::None, vec!["Downloading"])
+        .await
+        .expect("Failed to send feedback");
+    assert_eq!(mock.hits(), 1);
+    mock.delete();
+
+    // Send feedback with progress
+    let mut mock = server.expect_feedback(
+        &target,
+        &deploy_id,
+        Execution::Closed,
+        Finished::Success,
+        Some(json!({"awesome": true})),
+        vec!["Done"],
+    );
+    assert_eq!(mock.hits(), 0);
+
+    #[derive(Serialize)]
+    struct Progress {
+        awesome: bool,
+    }
+    let progress = Progress { awesome: true };
+
+    update
+        .send_feedback_with_progress(
+            Execution::Closed,
+            Finished::Success,
+            Some(progress),
+            vec!["Done"],
+        )
+        .await
+        .expect("Failed to send feedback");
+    assert_eq!(mock.hits(), 1);
+    mock.delete();
+}

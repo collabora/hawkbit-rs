@@ -4,12 +4,12 @@
 use std::path::PathBuf;
 
 use httpmock::{
-    Method::{GET, PUT},
+    Method::{GET, POST, PUT},
     MockRef, MockServer,
 };
 use serde_json::{json, Map, Value};
 
-use hawkbit::{MaintenanceWindow, Type};
+use hawkbit::{Execution, Finished, MaintenanceWindow, Type};
 
 pub struct ServerBuilder {
     tenant: String,
@@ -148,6 +148,43 @@ impl Server {
             deployment,
         }
     }
+
+    pub fn expect_feedback(
+        &self,
+        target: &Target,
+        deployment_id: &str,
+        execution: Execution,
+        finished: Finished,
+        progress: Option<serde_json::Value>,
+        details: Vec<&str>,
+    ) -> MockRef<'_> {
+        let progress = progress.unwrap_or(serde_json::Value::Null);
+
+        self.server.mock(|when, then| {
+            let expected = json!({
+                "id": deployment_id,
+                "status": {
+                    "result": {
+                        "progress": progress,
+                        "finished": finished
+                    },
+                    "execution": execution,
+                    "details": details,
+                },
+            });
+
+            when.method(POST)
+                .path(format!(
+                    "/{}/controller/v1/{}/deploymentBase/{}/feedback",
+                    self.tenant, target.name, deployment_id
+                ))
+                .header("Authorization", &format!("TargetToken {}", target.key))
+                .header("Content-Type", "application/json")
+                .json_body(expected);
+
+            then.status(200);
+        })
+    }
 }
 
 pub struct Target<'a> {
@@ -180,7 +217,7 @@ pub struct DeploymentBuilder {
     chunks: Vec<Chunk>,
 }
 pub struct Deployment {
-    id: String,
+    pub id: String,
     download_type: Type,
     update_type: Type,
     maintenance_window: Option<MaintenanceWindow>,
