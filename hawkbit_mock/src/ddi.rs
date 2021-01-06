@@ -201,11 +201,11 @@ impl<'a> Target<'a> {
     }
 
     pub fn config_data_hits(&self) -> usize {
-        self.config_data.as_ref().unwrap().hits()
+        self.config_data.as_ref().map_or(0, |m| m.hits())
     }
 
     pub fn deployment_hits(&self) -> usize {
-        self.deployment.as_ref().unwrap().hits()
+        self.deployment.as_ref().map_or(0, |m| m.hits())
     }
 }
 
