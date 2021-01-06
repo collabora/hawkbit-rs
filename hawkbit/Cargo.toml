@@ -23,9 +23,9 @@ sha-1 = { version = "0.9", optional = true }
 sha2 = { version = "0.9", optional = true }
 
 [dev-dependencies]
+hawkbit_mock = { path = "../hawkbit_mock/" }
 structopt = "0.3"
 anyhow = "1.0"
-httpmock = "0.5"
 log = "0.4"
 env_logger = "0.8"
 tempdir = "0.3"

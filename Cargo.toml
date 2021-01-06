@@ -2,4 +2,5 @@
 
 members = [
     "hawkbit",
+    "hawkbit_mock",
 ]

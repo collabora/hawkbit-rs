@@ -8,8 +8,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use tempdir::TempDir;
 
-mod mock_ddi;
-use mock_ddi::{Deployment, DeploymentBuilder, Server, ServerBuilder, Target};
+use hawkbit_mock::ddi::{Deployment, DeploymentBuilder, Server, ServerBuilder, Target};
 
 fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
