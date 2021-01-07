@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use httpmock::{
     Method::{GET, POST, PUT},
@@ -32,7 +33,7 @@ impl ServerBuilder {
 
     pub fn build(self) -> Server {
         Server {
-            server: MockServer::start(),
+            server: Rc::new(MockServer::start()),
             tenant: self.tenant,
         }
     }
@@ -40,7 +41,7 @@ impl ServerBuilder {
 
 pub struct Server {
     pub tenant: String,
-    server: MockServer,
+    server: Rc<MockServer>,
 }
 
 impl Server {
@@ -149,6 +150,7 @@ impl Server {
         Target {
             name: name.to_string(),
             key,
+            server: self.server.clone(),
             poll,
             config_data,
             deployment,
@@ -196,6 +198,7 @@ impl Server {
 pub struct Target<'a> {
     pub name: String,
     pub key: String,
+    server: Rc<MockServer>,
     poll: MockRef<'a>,
     config_data: Option<PendingAction<'a>>,
     deployment: Option<PendingAction<'a>>,
