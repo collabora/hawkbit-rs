@@ -74,7 +74,10 @@ impl Server {
                     then.status(200);
                 });
 
-                Some(config_data)
+                Some(PendingAction {
+                    path: config_path,
+                    mock: config_data,
+                })
             }
             None => None,
         };
@@ -118,7 +121,10 @@ impl Server {
                 }
             }
 
-            deploy_mock
+            PendingAction {
+                path: deploy_path,
+                mock: deploy_mock,
+            }
         });
 
         let response = json!({
@@ -191,8 +197,8 @@ pub struct Target<'a> {
     pub name: String,
     pub key: String,
     poll: MockRef<'a>,
-    config_data: Option<MockRef<'a>>,
-    deployment: Option<MockRef<'a>>,
+    config_data: Option<PendingAction<'a>>,
+    deployment: Option<PendingAction<'a>>,
 }
 
 impl<'a> Target<'a> {
@@ -201,12 +207,17 @@ impl<'a> Target<'a> {
     }
 
     pub fn config_data_hits(&self) -> usize {
-        self.config_data.as_ref().map_or(0, |m| m.hits())
+        self.config_data.as_ref().map_or(0, |m| m.mock.hits())
     }
 
     pub fn deployment_hits(&self) -> usize {
-        self.deployment.as_ref().map_or(0, |m| m.hits())
+        self.deployment.as_ref().map_or(0, |m| m.mock.hits())
     }
+}
+
+struct PendingAction<'a> {
+    mock: MockRef<'a>,
+    path: String,
 }
 
 pub struct DeploymentBuilder {
