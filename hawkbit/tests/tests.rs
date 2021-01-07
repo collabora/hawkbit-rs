@@ -189,8 +189,7 @@ async fn send_feedback() {
     let update = update.fetch().await.expect("failed to fetch update info");
 
     // Send feedback without progress
-    let mut mock = server.expect_feedback(
-        &target,
+    let mut mock = target.expect_feedback(
         &deploy_id,
         Execution::Proceeding,
         Finished::None,
@@ -207,8 +206,7 @@ async fn send_feedback() {
     mock.delete();
 
     // Send feedback with progress
-    let mut mock = server.expect_feedback(
-        &target,
+    let mut mock = target.expect_feedback(
         &deploy_id,
         Execution::Closed,
         Finished::Success,

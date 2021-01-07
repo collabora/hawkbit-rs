@@ -151,15 +151,27 @@ impl Server {
             name: name.to_string(),
             key,
             server: self.server.clone(),
+            tenant: self.tenant.clone(),
             poll,
             config_data,
             deployment,
         }
     }
+}
 
+pub struct Target<'a> {
+    pub name: String,
+    pub key: String,
+    server: Rc<MockServer>,
+    tenant: String,
+    poll: MockRef<'a>,
+    config_data: Option<PendingAction<'a>>,
+    deployment: Option<PendingAction<'a>>,
+}
+
+impl<'a> Target<'a> {
     pub fn expect_feedback(
         &self,
-        target: &Target,
         deployment_id: &str,
         execution: Execution,
         finished: Finished,
@@ -184,27 +196,16 @@ impl Server {
             when.method(POST)
                 .path(format!(
                     "/{}/controller/v1/{}/deploymentBase/{}/feedback",
-                    self.tenant, target.name, deployment_id
+                    self.tenant, self.name, deployment_id
                 ))
-                .header("Authorization", &format!("TargetToken {}", target.key))
+                .header("Authorization", &format!("TargetToken {}", self.key))
                 .header("Content-Type", "application/json")
                 .json_body(expected);
 
             then.status(200);
         })
     }
-}
 
-pub struct Target<'a> {
-    pub name: String,
-    pub key: String,
-    server: Rc<MockServer>,
-    poll: MockRef<'a>,
-    config_data: Option<PendingAction<'a>>,
-    deployment: Option<PendingAction<'a>>,
-}
-
-impl<'a> Target<'a> {
     pub fn poll_hits(&self) -> usize {
         self.poll.hits()
     }
