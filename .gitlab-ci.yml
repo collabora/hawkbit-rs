@@ -29,9 +29,15 @@ coverage:
     - cargo test --all-features
     # generate html report
     - grcov . --binary-path ./target/debug/ -s . -t html --branch --ignore-not-existing --ignore "hawkbit/examples/*" --ignore "*target*"  -o ./coverage/
+    # generate cobertura report for gitlab integration
+    - grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "hawkbit/examples/*" --ignore "*target*"  -o lcov
+    - curl -O https://raw.githubusercontent.com/eriwen/lcov-to-cobertura-xml/master/lcov_cobertura/lcov_cobertura.py && chmod +x lcov_cobertura.py
+    - ./lcov_cobertura.py lcov
   artifacts:
     paths:
       - 'coverage'
+    reports:
+      cobertura: coverage.xml
 
 pages:
   tags:
