@@ -16,6 +16,23 @@ test:
     - cargo test --all-features -- --color=always
     - cargo clippy
 
+coverage:
+  image: rustlang/rust:nightly
+  stage: test
+  variables:
+    RUSTFLAGS: "-Zinstrument-coverage"
+    LLVM_PROFILE_FILE: "hawkbitrs-%p-%m.profraw"
+  before_script:
+    - cargo install grcov
+    - rustup component add llvm-tools-preview
+  script:
+    - cargo test --all-features
+    # generate html report
+    - grcov . --binary-path ./target/debug/ -s . -t html --branch --ignore-not-existing --ignore "hawkbit/examples/*" --ignore "*target*"  -o ./coverage/
+  artifacts:
+    paths:
+      - 'coverage'
+
 pages:
   tags:
     - "lightweight"
