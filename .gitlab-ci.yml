@@ -25,6 +25,7 @@ coverage:
   before_script:
     - cargo install grcov
     - rustup component add llvm-tools-preview
+    - apt update && apt install -y lcov
   script:
     - cargo test --all-features
     # generate html report
@@ -33,6 +34,9 @@ coverage:
     - grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "hawkbit/examples/*" --ignore "*target*"  -o lcov
     - curl -O https://raw.githubusercontent.com/eriwen/lcov-to-cobertura-xml/master/lcov_cobertura/lcov_cobertura.py && chmod +x lcov_cobertura.py
     - ./lcov_cobertura.py lcov
+    # output coverage summary for gitlab parsing
+    - lcov -r lcov "/*" 2&> out
+    - grep lines out
   artifacts:
     paths:
       - 'coverage'
