@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use httpmock::{
     Method::{GET, POST, PUT},
-    MockRef, MockServer,
+    MockRef, MockRefExt, MockServer,
 };
 use serde_json::{json, Map, Value};
 
@@ -77,7 +77,7 @@ impl Server {
 
                 Some(PendingAction {
                     path: config_path,
-                    mock: config_data,
+                    mock: config_data.id(),
                 })
             }
             None => None,
@@ -124,7 +124,7 @@ impl Server {
 
             PendingAction {
                 path: deploy_path,
-                mock: deploy_mock,
+                mock: deploy_mock.id(),
             }
         });
 
@@ -152,24 +152,24 @@ impl Server {
             key,
             server: self.server.clone(),
             tenant: self.tenant.clone(),
-            poll,
+            poll: poll.id(),
             config_data,
             deployment,
         }
     }
 }
 
-pub struct Target<'a> {
+pub struct Target {
     pub name: String,
     pub key: String,
     server: Rc<MockServer>,
     tenant: String,
-    poll: MockRef<'a>,
-    config_data: Option<PendingAction<'a>>,
-    deployment: Option<PendingAction<'a>>,
+    poll: usize,
+    config_data: Option<PendingAction>,
+    deployment: Option<PendingAction>,
 }
 
-impl<'a> Target<'a> {
+impl Target {
     pub fn expect_feedback(
         &self,
         deployment_id: &str,
@@ -207,20 +207,27 @@ impl<'a> Target<'a> {
     }
 
     pub fn poll_hits(&self) -> usize {
-        self.poll.hits()
+        let mock = MockRef::new(self.poll, &self.server);
+        mock.hits()
     }
 
     pub fn config_data_hits(&self) -> usize {
-        self.config_data.as_ref().map_or(0, |m| m.mock.hits())
+        self.config_data.as_ref().map_or(0, |m| {
+            let mock = MockRef::new(m.mock, &self.server);
+            mock.hits()
+        })
     }
 
     pub fn deployment_hits(&self) -> usize {
-        self.deployment.as_ref().map_or(0, |m| m.mock.hits())
+        self.deployment.as_ref().map_or(0, |m| {
+            let mock = MockRef::new(m.mock, &self.server);
+            mock.hits()
+        })
     }
 }
 
-struct PendingAction<'a> {
-    mock: MockRef<'a>,
+struct PendingAction {
+    mock: usize,
     path: String,
 }
 

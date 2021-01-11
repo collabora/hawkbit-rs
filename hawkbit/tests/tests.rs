@@ -14,12 +14,12 @@ fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
 
-fn add_target<'a>(
-    server: &'a Server,
+fn add_target(
+    server: &Server,
     name: &str,
     expected_config_data: Option<Value>,
     deployment: Option<Deployment>,
-) -> (DirectDeviceIntegration, Target<'a>) {
+) -> (DirectDeviceIntegration, Target) {
     let target = server.add_target(name, expected_config_data, deployment);
 
     let client = DirectDeviceIntegration::new(
