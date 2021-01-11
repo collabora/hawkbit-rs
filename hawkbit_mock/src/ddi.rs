@@ -76,6 +76,7 @@ impl Server {
                 });
 
                 Some(PendingAction {
+                    server: self.server.clone(),
                     path: config_path,
                     mock: config_data.id(),
                 })
@@ -123,6 +124,7 @@ impl Server {
             }
 
             PendingAction {
+                server: self.server.clone(),
                 path: deploy_path,
                 mock: deploy_mock.id(),
             }
@@ -227,8 +229,16 @@ impl Target {
 }
 
 struct PendingAction {
+    server: Rc<MockServer>,
     mock: usize,
     path: String,
+}
+
+impl Drop for PendingAction {
+    fn drop(&mut self) {
+        let mut mock = MockRef::new(self.mock, &self.server);
+        mock.delete();
+    }
 }
 
 pub struct DeploymentBuilder {
