@@ -1,8 +1,11 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
-use std::path::PathBuf;
 use std::rc::Rc;
+use std::{
+    cell::{Cell, RefCell},
+    path::PathBuf,
+};
 
 use httpmock::{
     Method::{GET, POST, PUT},
@@ -49,86 +52,53 @@ impl Server {
         self.server.base_url()
     }
 
-    pub fn add_target(
-        &self,
-        name: &str,
-        expected_config_data: Option<Value>,
-        deployment: Option<Deployment>,
-    ) -> Target {
+    pub fn add_target(&self, name: &str) -> Target {
+        Target::new(name, &self.server, &self.tenant)
+    }
+}
+
+pub struct Target {
+    pub name: String,
+    pub key: String,
+    server: Rc<MockServer>,
+    tenant: String,
+    poll: Cell<usize>,
+    config_data: RefCell<Option<PendingAction>>,
+    deployment: RefCell<Option<PendingAction>>,
+}
+
+impl Target {
+    fn new(name: &str, server: &Rc<MockServer>, tenant: &str) -> Self {
         let key = format!("Key{}", name);
+
+        let poll = Self::create_poll(server, tenant, name, &key, None, None);
+        Target {
+            name: name.to_string(),
+            key,
+            server: server.clone(),
+            tenant: tenant.to_string(),
+            poll: Cell::new(poll),
+            config_data: RefCell::new(None),
+            deployment: RefCell::new(None),
+        }
+    }
+
+    fn create_poll(
+        server: &MockServer,
+        tenant: &str,
+        name: &str,
+        key: &str,
+        expected_config_data: Option<&PendingAction>,
+        deployment: Option<&PendingAction>,
+    ) -> usize {
         let mut links = Map::new();
 
-        let config_data = match expected_config_data {
-            Some(expected_config_data) => {
-                let config_path = self
-                    .server
-                    .url(format!("/DEFAULT/controller/v1/{}/configData", name));
-                links.insert("configData".into(), json!({ "href": config_path }));
-
-                let config_data = self.server.mock(|when, then| {
-                    when.method(PUT)
-                        .path(format!("/DEFAULT/controller/v1/{}/configData", name))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", &format!("TargetToken {}", key))
-                        .json_body(expected_config_data);
-
-                    then.status(200);
-                });
-
-                Some(PendingAction {
-                    server: self.server.clone(),
-                    path: config_path,
-                    mock: config_data.id(),
-                })
-            }
-            None => None,
-        };
-
-        let deployment = deployment.map(|deploy| {
-            let deploy_path = self.server.url(format!(
-                "/DEFAULT/controller/v1/{}/deploymentBase/{}",
-                name, deploy.id
-            ));
-            links.insert("deploymentBase".into(), json!({ "href": deploy_path }));
-
-            let base_url = self.server.url("/download");
-            let response = deploy.json(&base_url);
-
-            let deploy_mock = self.server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!(
-                        "/DEFAULT/controller/v1/{}/deploymentBase/{}",
-                        name, deploy.id
-                    ))
-                    .header("Authorization", &format!("TargetToken {}", key));
-
-                then.status(200)
-                    .header("Content-Type", "application/json")
-                    .json_body(response);
-            });
-
-            // Serve the artifacts
-            for chunk in deploy.chunks.iter() {
-                for (artifact, _md5, _sha1, _sha256) in chunk.artifacts.iter() {
-                    let file_name = artifact.file_name().unwrap().to_str().unwrap();
-                    let path = format!("/download/{}", file_name);
-
-                    self.server.mock(|when, then| {
-                        when.method(GET)
-                            .path(path)
-                            .header("Authorization", &format!("TargetToken {}", key));
-
-                        then.status(200).body_from_file(artifact.to_str().unwrap());
-                    });
-                }
-            }
-
-            PendingAction {
-                server: self.server.clone(),
-                path: deploy_path,
-                mock: deploy_mock.id(),
-            }
-        });
+        if let Some(pending) = expected_config_data {
+            links.insert("configData".into(), json!({ "href": pending.path }));
+        }
+        if let Some(pending) = deployment {
+            links.insert("deploymentBase".into(), json!({ "href": pending.path }));
+        }
 
         let response = json!({
             "config": {
@@ -139,9 +109,9 @@ impl Server {
             "_links": links
         });
 
-        let poll = self.server.mock(|when, then| {
+        let mock = server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/{}/controller/v1/{}", self.tenant, name))
+                .path(format!("/{}/controller/v1/{}", tenant, name))
                 .header("Authorization", &format!("TargetToken {}", key));
 
             then.status(200)
@@ -149,29 +119,94 @@ impl Server {
                 .json_body(response);
         });
 
-        Target {
-            name: name.to_string(),
-            key,
-            server: self.server.clone(),
-            tenant: self.tenant.clone(),
-            poll: poll.id(),
-            config_data,
-            deployment,
-        }
+        mock.id()
     }
-}
 
-pub struct Target {
-    pub name: String,
-    pub key: String,
-    server: Rc<MockServer>,
-    tenant: String,
-    poll: usize,
-    config_data: Option<PendingAction>,
-    deployment: Option<PendingAction>,
-}
+    fn update_poll(&self) {
+        let old = self.poll.replace(Self::create_poll(
+            &self.server,
+            &self.tenant,
+            &self.name,
+            &self.key,
+            self.config_data.borrow().as_ref(),
+            self.deployment.borrow().as_ref(),
+        ));
 
-impl Target {
+        let mut old = MockRef::new(old, &self.server);
+        old.delete();
+    }
+
+    pub fn request_config(&self, expected_config_data: Value) {
+        let config_path = self
+            .server
+            .url(format!("/DEFAULT/controller/v1/{}/configData", self.name));
+
+        let config_data = self.server.mock(|when, then| {
+            when.method(PUT)
+                .path(format!("/DEFAULT/controller/v1/{}/configData", self.name))
+                .header("Content-Type", "application/json")
+                .header("Authorization", &format!("TargetToken {}", self.key))
+                .json_body(expected_config_data);
+
+            then.status(200);
+        });
+
+        self.config_data.replace(Some(PendingAction {
+            server: self.server.clone(),
+            path: config_path,
+            mock: config_data.id(),
+        }));
+
+        self.update_poll();
+    }
+
+    pub fn push_deployment(&self, deploy: Deployment) {
+        let deploy_path = self.server.url(format!(
+            "/DEFAULT/controller/v1/{}/deploymentBase/{}",
+            self.name, deploy.id
+        ));
+
+        let base_url = self.server.url("/download");
+        let response = deploy.json(&base_url);
+
+        let deploy_mock = self.server.mock(|when, then| {
+            when.method(GET)
+                .path(format!(
+                    "/DEFAULT/controller/v1/{}/deploymentBase/{}",
+                    self.name, deploy.id
+                ))
+                .header("Authorization", &format!("TargetToken {}", self.key));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(response);
+        });
+
+        // Serve the artifacts
+        for chunk in deploy.chunks.iter() {
+            for (artifact, _md5, _sha1, _sha256) in chunk.artifacts.iter() {
+                let file_name = artifact.file_name().unwrap().to_str().unwrap();
+                let path = format!("/download/{}", file_name);
+
+                self.server.mock(|when, then| {
+                    when.method(GET)
+                        .path(path)
+                        .header("Authorization", &format!("TargetToken {}", self.key));
+
+                    then.status(200).body_from_file(artifact.to_str().unwrap());
+                });
+            }
+        }
+
+        self.deployment.replace(Some(PendingAction {
+            server: self.server.clone(),
+            path: deploy_path,
+            mock: deploy_mock.id(),
+        }));
+
+        self.update_poll();
+    }
+
     pub fn expect_feedback(
         &self,
         deployment_id: &str,
@@ -209,19 +244,19 @@ impl Target {
     }
 
     pub fn poll_hits(&self) -> usize {
-        let mock = MockRef::new(self.poll, &self.server);
+        let mock = MockRef::new(self.poll.get(), &self.server);
         mock.hits()
     }
 
     pub fn config_data_hits(&self) -> usize {
-        self.config_data.as_ref().map_or(0, |m| {
+        self.config_data.borrow().as_ref().map_or(0, |m| {
             let mock = MockRef::new(m.mock, &self.server);
             mock.hits()
         })
     }
 
     pub fn deployment_hits(&self) -> usize {
-        self.deployment.as_ref().map_or(0, |m| {
+        self.deployment.borrow().as_ref().map_or(0, |m| {
             let mock = MockRef::new(m.mock, &self.server);
             mock.hits()
         })

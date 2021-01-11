@@ -5,7 +5,7 @@ use std::{path::PathBuf, time::Duration};
 
 use hawkbit::{DirectDeviceIntegration, Execution, Finished, MaintenanceWindow, Mode, Type};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use tempdir::TempDir;
 
 use hawkbit_mock::ddi::{Deployment, DeploymentBuilder, Server, ServerBuilder, Target};
@@ -14,13 +14,8 @@ fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
 
-fn add_target(
-    server: &Server,
-    name: &str,
-    expected_config_data: Option<Value>,
-    deployment: Option<Deployment>,
-) -> (DirectDeviceIntegration, Target) {
-    let target = server.add_target(name, expected_config_data, deployment);
+fn add_target(server: &Server, name: &str) -> (DirectDeviceIntegration, Target) {
+    let target = server.add_target(name);
 
     let client = DirectDeviceIntegration::new(
         &server.base_url(),
@@ -38,7 +33,7 @@ async fn poll() {
     init();
 
     let server = ServerBuilder::default().tenant("my-tenant").build();
-    let (client, target) = add_target(&server, "Target1", None, None);
+    let (client, target) = add_target(&server, "Target1");
 
     assert_eq!(target.poll_hits(), 0);
 
@@ -57,6 +52,8 @@ async fn upload_config() {
     init();
 
     let server = ServerBuilder::default().build();
+    let (client, target) = add_target(&server, "Target1");
+
     let expected_config_data = json!({
         "mode" : "merge",
         "data" : {
@@ -70,7 +67,7 @@ async fn upload_config() {
             "details" : [ "Some stuffs" ]
         }
     });
-    let (client, target) = add_target(&server, "Target1", Some(expected_config_data), None);
+    target.request_config(expected_config_data);
 
     let reply = client.poll().await.expect("poll failed");
     let config_data_req = reply
@@ -127,7 +124,8 @@ async fn deployment() {
     init();
 
     let server = ServerBuilder::default().build();
-    let (client, target) = add_target(&server, "Target1", None, Some(get_deployment()));
+    let (client, target) = add_target(&server, "Target1");
+    target.push_deployment(get_deployment());
 
     let reply = client.poll().await.expect("poll failed");
     assert!(reply.config_data_request().is_none());
@@ -182,7 +180,8 @@ async fn send_feedback() {
     let server = ServerBuilder::default().build();
     let deploy = get_deployment();
     let deploy_id = deploy.id.clone();
-    let (client, target) = add_target(&server, "Target1", None, Some(deploy));
+    let (client, target) = add_target(&server, "Target1");
+    target.push_deployment(deploy);
 
     let reply = client.poll().await.expect("poll failed");
     let update = reply.update().expect("missing update");
