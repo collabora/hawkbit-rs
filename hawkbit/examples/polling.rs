@@ -59,6 +59,7 @@ async fn main() -> Result<()> {
             let artifacts = update.download(Path::new("./download/")).await?;
             dbg!(&artifacts);
 
+            #[cfg(feature = "hash-digest")]
             for artifact in artifacts {
                 #[cfg(feature = "hash-md5")]
                 artifact.check_md5().await?;
