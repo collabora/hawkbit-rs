@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::Serialize;
 
 use crate::common::{Execution, Finished};
-use crate::direct_device_integration::Error;
+use crate::ddi::Error;
 
 #[derive(Debug)]
 pub struct Request {

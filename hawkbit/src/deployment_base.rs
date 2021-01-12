@@ -14,7 +14,7 @@ use tokio::{
 use url::Url;
 
 use crate::common::{Execution, Finished, Link};
-use crate::direct_device_integration::Error;
+use crate::ddi::Error;
 use crate::feedback::Feedback;
 
 #[derive(Debug)]

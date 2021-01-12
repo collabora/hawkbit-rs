@@ -10,8 +10,8 @@ use serde::Deserialize;
 
 use crate::common::Link;
 use crate::config_data::Request;
+use crate::ddi::Error;
 use crate::deployment_base::UpdatePreFetch;
-use crate::direct_device_integration::Error;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ReplyInternal {
