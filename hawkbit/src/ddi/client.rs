@@ -8,27 +8,41 @@ use url::Url;
 
 use crate::ddi::poll;
 
+/// [Direct Device Integration](https://www.eclipse.org/hawkbit/apis/ddi_api/) client.
 #[derive(Debug)]
 pub struct Client {
     base_url: Url,
     client: reqwest::Client,
 }
 
+/// DDI errors
 #[derive(Error, Debug)]
 pub enum Error {
+    /// URL error
     #[error("Could not parse url")]
     ParseUrlError(#[from] url::ParseError),
+    /// Token error
     #[error("Invalid token format")]
     InvalidToken(#[from] reqwest::header::InvalidHeaderValue),
+    /// HTTP error
     #[error("Failed to process request")]
     ReqwestError(#[from] reqwest::Error),
+    /// Error parsing sleep field from server
     #[error("Failed to parse polling sleep")]
     InvalidSleep,
+    /// IO error
     #[error("Failed to download update")]
     Io(#[from] std::io::Error),
 }
 
 impl Client {
+    /// Create a new DDI client.
+    ///
+    /// # Arguments
+    /// * `url`: the URL of the hawkBit server, such as `http://my-server.com:8080`
+    /// * `tenant`: the server tenant
+    /// * `controller_id`: the id of the controller
+    /// * `key_token`: the secret authentification token of the controller
     pub fn new(
         url: &str,
         tenant: &str,
@@ -51,6 +65,7 @@ impl Client {
         Ok(Self { base_url, client })
     }
 
+    /// Poll the server for updates
     pub async fn poll(&self) -> Result<poll::Reply, Error> {
         let reply = self.client.get(self.base_url.clone()).send().await?;
         reply.error_for_status_ref()?;

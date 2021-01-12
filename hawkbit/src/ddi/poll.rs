@@ -37,6 +37,7 @@ pub struct Links {
     cancel_action: Option<Link>,
 }
 
+/// Polling reply from the server
 #[derive(Debug)]
 pub struct Reply {
     reply: ReplyInternal,
@@ -48,10 +49,12 @@ impl Reply {
         Self { reply, client }
     }
 
+    /// Suggested sleeping time between two polling requests to the server.
     pub fn polling_sleep(&self) -> Result<Duration, Error> {
         self.reply.config.polling.as_duration()
     }
 
+    /// Returns pending configuration data request from the server, if any.
     pub fn config_data_request(&self) -> Option<ConfigRequest> {
         match &self.reply.links {
             Some(links) => links
@@ -62,6 +65,7 @@ impl Reply {
         }
     }
 
+    /// Returns pending update to deploy, if any.
     pub fn update(&self) -> Option<UpdatePreFetch> {
         match &self.reply.links {
             Some(links) => links

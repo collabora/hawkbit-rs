@@ -18,6 +18,9 @@ use crate::ddi::common::{Execution, Finished, Link};
 use crate::ddi::feedback::Feedback;
 
 #[derive(Debug)]
+/// A pending update whose details have not been retrieved yet.
+///
+/// Call [`UpdatePreFetch::fetch()`] to retrieve the details from server.
 pub struct UpdatePreFetch {
     client: Client,
     url: String,
@@ -28,6 +31,7 @@ impl UpdatePreFetch {
         Self { client, url }
     }
 
+    /// Retrieve details about the update.
     pub async fn fetch(self) -> Result<Update, Error> {
         let reply = self.client.get(&self.url).send().await?;
         reply.error_for_status_ref()?;
@@ -54,18 +58,25 @@ struct Deployment {
     chunks: Vec<ChunkInternal>,
 }
 
+/// How the download or update should be processed by the target.
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
+    /// Do not process yet
     Skip,
+    /// Server asks to process
     Attempt,
+    /// Server requests immediate processing
     Forced,
 }
 
+/// Separation of download and installation by defining a maintenance window for the installation.
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MaintenanceWindow {
+    /// Maintenance window is available
     Available,
+    /// Maintenance window is unavailable
     Unavailable,
 }
 
@@ -116,6 +127,7 @@ struct ActionHistory {
     messages: Vec<String>,
 }
 
+/// A pending update to deploy.
 #[derive(Debug)]
 pub struct Update {
     client: Client,
@@ -128,18 +140,22 @@ impl Update {
         Self { client, info, url }
     }
 
+    /// Handling for the download part of the provisioning process.
     pub fn download_type(&self) -> Type {
         self.info.deployment.download
     }
 
+    /// Handling for the update part of the provisioning process.
     pub fn update_type(&self) -> Type {
         self.info.deployment.update
     }
 
+    /// If set, the update is part of a maintenance window.
     pub fn maintenance_window(&self) -> Option<MaintenanceWindow> {
         self.info.deployment.maintenance_window
     }
 
+    /// An iterator on all the software chunks of the update.
     pub fn chunks(&self) -> impl Iterator<Item = Chunk> {
         let client = self.client.clone();
 
@@ -150,6 +166,7 @@ impl Update {
             .map(move |c| Chunk::new(c, client.clone()))
     }
 
+    /// Download all software chunks to the directory defined in `dir`.
     pub async fn download(&self, dir: &Path) -> Result<Vec<DownloadedArtifact>, Error> {
         let mut result = Vec::new();
         for c in self.chunks() {
@@ -196,6 +213,13 @@ impl Update {
         Ok(())
     }
 
+    /// Send feedback to server about this update, with custom progress information.
+    ///
+    /// # Arguments
+    /// * `execution`: status of the action execution.
+    /// * `finished`: defined status of the result. The action will be kept open on the server until the controller on the device reports either [`Finished::Success`] or [`Finished::Failure`].
+    /// * `progress`: progress assumption of the device.
+    /// * `details`: list of details message information.
     pub async fn send_feedback_with_progress<T: Serialize>(
         &self,
         execution: Execution,
@@ -207,6 +231,9 @@ impl Update {
             .await
     }
 
+    /// Send feedback to server about this update.
+    ///
+    /// Same as [`Update::send_feedback_with_progress`] but without passing custom progress information about the update.
     pub async fn send_feedback(
         &self,
         execution: Execution,
@@ -218,6 +245,7 @@ impl Update {
     }
 }
 
+/// Software chunk of an update.
 #[derive(Debug)]
 pub struct Chunk<'a> {
     chunk: &'a ChunkInternal,
@@ -229,18 +257,22 @@ impl<'a> Chunk<'a> {
         Self { chunk, client }
     }
 
+    /// Type of the chunk.
     pub fn part(&self) -> &str {
         &self.chunk.part
     }
 
+    /// Name of the chunk.
     pub fn name(&self) -> &str {
         &self.chunk.name
     }
 
+    /// Software version of the chunk.
     pub fn version(&self) -> &str {
         &self.chunk.version
     }
 
+    /// An iterator on all the artifacts of the chunk.
     pub fn artifacts(&self) -> impl Iterator<Item = Artifact> {
         let client = self.client.clone();
 
@@ -250,6 +282,7 @@ impl<'a> Chunk<'a> {
             .map(move |a| Artifact::new(a, client.clone()))
     }
 
+    /// Download all artifacts of the chunk to the directory defined in `dir`.
     pub async fn download(&'a self, dir: &Path) -> Result<Vec<DownloadedArtifact>, Error> {
         let mut dir = dir.to_path_buf();
         dir.push(self.name());
@@ -264,6 +297,7 @@ impl<'a> Chunk<'a> {
     }
 }
 
+/// A single file part of a [`Chunk`] to download.
 #[derive(Debug)]
 pub struct Artifact<'a> {
     artifact: &'a ArtifactInternal,
@@ -275,14 +309,17 @@ impl<'a> Artifact<'a> {
         Self { artifact, client }
     }
 
+    /// The name of the file.
     pub fn filename(&self) -> &str {
         &self.artifact.filename
     }
 
+    /// The size of the file.
     pub fn size(&self) -> u32 {
         self.artifact.size
     }
 
+    /// Download the artifact file to the directory defined in `dir`.
     pub async fn download(&'a self, dir: &Path) -> Result<DownloadedArtifact, Error> {
         let mut resp = self
             .client
@@ -311,6 +348,7 @@ impl<'a> Artifact<'a> {
     }
 }
 
+/// A downloaded file part of a [`Chunk`].
 #[derive(Debug)]
 pub struct DownloadedArtifact {
     file: PathBuf,
@@ -349,6 +387,7 @@ impl<'a> DownloadedArtifact {
         Self { file, hashes }
     }
 
+    /// Path of the downloaded file.
     pub fn file(&self) -> &PathBuf {
         &self.file
     }
@@ -371,6 +410,7 @@ impl<'a> DownloadedArtifact {
         Ok(hasher.finalize())
     }
 
+    /// Check if the md5sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-md5")]
     pub async fn check_md5(&self) -> Result<(), ChecksumError> {
         let digest = self.hash(md5::Md5::new()).await?;
@@ -382,6 +422,7 @@ impl<'a> DownloadedArtifact {
         }
     }
 
+    /// Check if the sha1sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha1")]
     pub async fn check_sha1(&self) -> Result<(), ChecksumError> {
         let digest = self.hash(sha1::Sha1::new()).await?;
@@ -393,6 +434,7 @@ impl<'a> DownloadedArtifact {
         }
     }
 
+    /// Check if the sha256sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha256")]
     pub async fn check_sha256(&self) -> Result<(), ChecksumError> {
         let digest = self.hash(sha2::Sha256::new()).await?;

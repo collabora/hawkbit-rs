@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::ddi::{Error, Execution, Finished};
 
+/// A request from the server asking to upload the device configuration.
 #[derive(Debug)]
 pub struct ConfigRequest {
     client: Client,
@@ -19,6 +20,10 @@ impl ConfigRequest {
         Self { client, url }
     }
 
+    /// Send the requested device configuration to the server.
+    ///
+    /// The configuration is represented as the `data` argument which
+    /// need to be serializable.
     pub async fn upload<T: Serialize>(
         &self,
         execution: Execution,
@@ -55,11 +60,16 @@ pub(crate) struct ResultT {
     finished: Finished,
 }
 
+/// Update mode that should be applied when updating target
+// FIXME: would be good to have better documentation of the fields but the spec does not say much
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
+    /// Merge
     Merge,
+    /// Replace
     Replace,
+    /// Remove
     Remove,
 }
 
