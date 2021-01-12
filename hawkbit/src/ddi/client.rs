@@ -24,8 +24,6 @@ pub enum Error {
     ReqwestError(#[from] reqwest::Error),
     #[error("Failed to parse polling sleep")]
     InvalidSleep,
-    #[error("No config data has been requested from server")]
-    NoConfigData,
     #[error("Failed to download update")]
     Io(#[from] std::io::Error),
 }
