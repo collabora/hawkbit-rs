@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::ddi::client::Error;
 use crate::ddi::common::Link;
-use crate::ddi::config_data::Request;
+use crate::ddi::config_data::ConfigRequest;
 use crate::ddi::deployment_base::UpdatePreFetch;
 
 #[derive(Debug, Deserialize)]
@@ -52,12 +52,12 @@ impl Reply {
         self.reply.config.polling.as_duration()
     }
 
-    pub fn config_data_request(&self) -> Option<Request> {
+    pub fn config_data_request(&self) -> Option<ConfigRequest> {
         match &self.reply.links {
             Some(links) => links
                 .config_data
                 .as_ref()
-                .map(|l| Request::new(self.client.clone(), l.to_string())),
+                .map(|l| ConfigRequest::new(self.client.clone(), l.to_string())),
             None => None,
         }
     }

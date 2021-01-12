@@ -9,12 +9,12 @@ use serde::Serialize;
 use crate::ddi::{Error, Execution, Finished};
 
 #[derive(Debug)]
-pub struct Request {
+pub struct ConfigRequest {
     client: Client,
     url: String,
 }
 
-impl Request {
+impl ConfigRequest {
     pub(crate) fn new(client: Client, url: String) -> Self {
         Self { client, url }
     }

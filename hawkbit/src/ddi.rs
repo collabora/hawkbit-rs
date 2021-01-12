@@ -10,7 +10,7 @@ mod poll;
 
 pub use client::{Client, Error};
 pub use common::{Execution, Finished};
-pub use config_data::{Mode, Request};
+pub use config_data::{ConfigRequest, Mode};
 pub use deployment_base::{
     Artifact, Chunk, DownloadedArtifact, MaintenanceWindow, Type, Update, UpdatePreFetch,
 };
