@@ -13,9 +13,9 @@ use tokio::{
 };
 use url::Url;
 
-use crate::common::{Execution, Finished, Link};
-use crate::ddi::Error;
-use crate::feedback::Feedback;
+use crate::ddi::client::Error;
+use crate::ddi::common::{Execution, Finished, Link};
+use crate::ddi::feedback::Feedback;
 
 #[derive(Debug)]
 pub struct UpdatePreFetch {

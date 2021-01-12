@@ -6,8 +6,7 @@
 use reqwest::Client;
 use serde::Serialize;
 
-use crate::common::{Execution, Finished};
-use crate::ddi::Error;
+use crate::ddi::{Error, Execution, Finished};
 
 #[derive(Debug)]
 pub struct Request {

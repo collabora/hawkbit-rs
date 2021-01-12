@@ -13,7 +13,7 @@ use httpmock::{
 };
 use serde_json::{json, Map, Value};
 
-use hawkbit::{Execution, Finished, MaintenanceWindow, Type};
+use hawkbit::ddi::{Execution, Finished, MaintenanceWindow, Type};
 
 pub struct ServerBuilder {
     tenant: String,

@@ -8,10 +8,10 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::common::Link;
-use crate::config_data::Request;
-use crate::ddi::Error;
-use crate::deployment_base::UpdatePreFetch;
+use crate::ddi::client::Error;
+use crate::ddi::common::Link;
+use crate::ddi::config_data::Request;
+use crate::ddi::deployment_base::UpdatePreFetch;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ReplyInternal {

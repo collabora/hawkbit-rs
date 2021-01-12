@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use hawkbit::{Client, Execution, Finished};
+use hawkbit::ddi::{Client, Execution, Finished};
 use serde::Serialize;
 use structopt::StructOpt;
 use tokio::time::delay_for;

@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 
-use crate::common::{Execution, Finished};
+use crate::ddi::common::{Execution, Finished};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Feedback<T: Serialize> {

@@ -3,7 +3,7 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use hawkbit::{Client, Execution, Finished, MaintenanceWindow, Mode, Type};
+use hawkbit::ddi::{Client, Execution, Finished, MaintenanceWindow, Mode, Type};
 use serde::Serialize;
 use serde_json::json;
 use tempdir::TempDir;
