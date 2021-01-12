@@ -3,7 +3,6 @@
 
 use std::convert::TryInto;
 
-use reqwest::{header, Client};
 use thiserror::Error;
 use url::Url;
 
@@ -12,7 +11,7 @@ use crate::poll;
 #[derive(Debug)]
 pub struct DirectDeviceIntegration {
     base_url: Url,
-    client: Client,
+    client: reqwest::Client,
 }
 
 #[derive(Error, Debug)]
@@ -20,7 +19,7 @@ pub enum Error {
     #[error("Could not parse url")]
     ParseUrlError(#[from] url::ParseError),
     #[error("Invalid token format")]
-    InvalidToken(#[from] header::InvalidHeaderValue),
+    InvalidToken(#[from] reqwest::header::InvalidHeaderValue),
     #[error("Failed to process request")]
     ReqwestError(#[from] reqwest::Error),
     #[error("Failed to parse polling sleep")]
@@ -42,13 +41,15 @@ impl DirectDeviceIntegration {
         let path = format!("{}/controller/v1/{}", tenant, controller_id);
         let base_url = host.join(&path)?;
 
-        let mut headers = header::HeaderMap::new();
+        let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::AUTHORIZATION,
             format!("TargetToken {}", key_token).try_into()?,
         );
 
-        let client = Client::builder().default_headers(headers).build()?;
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
         Ok(Self { base_url, client })
     }
 
