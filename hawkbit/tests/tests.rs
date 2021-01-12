@@ -3,7 +3,7 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use hawkbit::{DirectDeviceIntegration, Execution, Finished, MaintenanceWindow, Mode, Type};
+use hawkbit::{Client, Execution, Finished, MaintenanceWindow, Mode, Type};
 use serde::Serialize;
 use serde_json::json;
 use tempdir::TempDir;
@@ -14,10 +14,10 @@ fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
 
-fn add_target(server: &Server, name: &str) -> (DirectDeviceIntegration, Target) {
+fn add_target(server: &Server, name: &str) -> (Client, Target) {
     let target = server.add_target(name);
 
-    let client = DirectDeviceIntegration::new(
+    let client = Client::new(
         &server.base_url(),
         &server.tenant,
         &target.name,

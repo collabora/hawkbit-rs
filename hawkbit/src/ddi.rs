@@ -9,7 +9,7 @@ use url::Url;
 use crate::poll;
 
 #[derive(Debug)]
-pub struct DirectDeviceIntegration {
+pub struct Client {
     base_url: Url,
     client: reqwest::Client,
 }
@@ -30,7 +30,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-impl DirectDeviceIntegration {
+impl Client {
     pub fn new(
         url: &str,
         tenant: &str,

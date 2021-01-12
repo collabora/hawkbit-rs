@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use hawkbit::{DirectDeviceIntegration, Execution, Finished};
+use hawkbit::{Client, Execution, Finished};
 use serde::Serialize;
 use structopt::StructOpt;
 use tokio::time::delay_for;
@@ -29,7 +29,7 @@ pub(crate) struct ConfigData {
 async fn main() -> Result<()> {
     let opt = Opt::from_args();
 
-    let ddi = DirectDeviceIntegration::new(&opt.url, &opt.tenant, &opt.controller, &opt.key)?;
+    let ddi = Client::new(&opt.url, &opt.tenant, &opt.controller, &opt.key)?;
 
     loop {
         let reply = ddi.poll().await?;

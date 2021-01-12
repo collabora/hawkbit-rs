@@ -11,7 +11,7 @@ mod poll;
 
 pub use common::{Execution, Finished};
 pub use config_data::{Mode, Request};
-pub use ddi::DirectDeviceIntegration;
+pub use ddi::Client;
 pub use deployment_base::{
     Artifact, Chunk, DownloadedArtifact, MaintenanceWindow, Type, Update, UpdatePreFetch,
 };
