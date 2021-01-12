@@ -232,3 +232,42 @@ async fn send_feedback() {
     assert_eq!(mock.hits(), 1);
     mock.delete();
 }
+
+#[tokio::test]
+async fn config_then_deploy() {
+    init();
+
+    let server = ServerBuilder::default().build();
+    let (client, target) = add_target(&server, "Target1");
+
+    let reply = client.poll().await.expect("poll failed");
+    assert!(reply.config_data_request().is_none());
+    assert!(reply.update().is_none());
+
+    // server requests config
+    let expected_config_data = json!({
+        "mode" : "merge",
+        "data" : {
+            "awesome" : true,
+        },
+        "status" : {
+            "result" : {
+            "finished" : "success"
+            },
+            "execution" : "closed",
+            "details" : [ "Some stuffs" ]
+        }
+    });
+    target.request_config(expected_config_data);
+
+    let reply = client.poll().await.expect("poll failed");
+    assert!(reply.config_data_request().is_some());
+    assert!(reply.update().is_none());
+
+    // server pushes an update
+    target.push_deployment(get_deployment());
+
+    let reply = client.poll().await.expect("poll failed");
+    assert!(reply.config_data_request().is_some());
+    assert!(reply.update().is_some());
+}
