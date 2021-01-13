@@ -1,6 +1,8 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
+#![warn(missing_docs)]
+
 //! # hawkbit
 //!
 //! The `hawkbit` crate provides high-level client-side API to interact with
