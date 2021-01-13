@@ -354,7 +354,7 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    pub async fn hash<T: Digest>(&self, mut hasher: T) -> Result<digest::Output<T>, ChecksumError> {
+    async fn hash<T: Digest>(&self, mut hasher: T) -> Result<digest::Output<T>, ChecksumError> {
         use tokio::io::AsyncReadExt;
 
         let mut file = File::open(&self.file).await?;
