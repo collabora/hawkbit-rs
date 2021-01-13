@@ -38,7 +38,7 @@ impl UpdatePreFetch {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Reply {
+struct Reply {
     id: String,
     deployment: Deployment,
     #[serde(rename = "actionHistory")]
