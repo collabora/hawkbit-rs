@@ -1,6 +1,8 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
+#![warn(missing_docs)]
+
 //! # hawkbit_mock
 //!
 //! Mock server implementation of [Eclipse hawkBit](https://www.eclipse.org/hawkbit/)
