@@ -1,6 +1,27 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT
 
+//! [Direct Device Integration](https://www.eclipse.org/hawkbit/apis/ddi_api/) mock server.
+//!
+//! This module provides a hawkBit mock server implementing the [DDI API](https://www.eclipse.org/hawkbit/apis/ddi_api/).
+//! It can be instrumented to test any hawkbit client.
+//!
+//! # Examples
+//!
+//! ```
+//! use hawkbit_mock::ddi::ServerBuilder;
+//!
+//! let server = ServerBuilder::default().build();
+//! let target = server.add_target("Target1");
+//! ```
+//!
+//! You can tell call [`Target::request_config`] or [`Target::push_deployment`] to
+//! to interact with the server.
+//!
+//! Check the the hawbit crate for actual tests using this mock server.
+
+// FIXME: set link to hawbit/tests/tests.rs once we have the final public repo
+
 use std::rc::Rc;
 use std::{
     cell::{Cell, RefCell},
@@ -15,6 +36,15 @@ use serde_json::{json, Map, Value};
 
 use hawkbit::ddi::{Execution, Finished, MaintenanceWindow, Type};
 
+/// Builder of [`Server`].
+///
+/// # Examples
+///
+/// ```
+/// use hawkbit_mock::ddi::ServerBuilder;
+///
+/// let server = ServerBuilder::default().build();
+/// ```
 pub struct ServerBuilder {
     tenant: String,
 }
@@ -28,12 +58,14 @@ impl Default for ServerBuilder {
 }
 
 impl ServerBuilder {
+    /// Set the tenant of the server, default to `DEFAULT`.
     pub fn tenant(self, tenant: &str) -> Self {
         let mut builder = self;
         builder.tenant = tenant.to_string();
         builder
     }
 
+    /// Create the [`Server`].
     pub fn build(self) -> Server {
         Server {
             server: Rc::new(MockServer::start()),
@@ -42,23 +74,30 @@ impl ServerBuilder {
     }
 }
 
+/// Mock DDI server instance.
 pub struct Server {
+    /// The tenant of the server.
     pub tenant: String,
     server: Rc<MockServer>,
 }
 
 impl Server {
+    /// The base URL of the server, such as `http://my-server.com:8080`
     pub fn base_url(&self) -> String {
         self.server.base_url()
     }
 
+    /// Add a new target named `name` to the server.
     pub fn add_target(&self, name: &str) -> Target {
         Target::new(name, &self.server, &self.tenant)
     }
 }
 
+/// A configured device the server can request configuration for and push updates to.
 pub struct Target {
+    /// The name of the target.
     pub name: String,
+    /// The secret authentification token used to identify the target on the server.
     pub key: String,
     server: Rc<MockServer>,
     tenant: String,
@@ -136,6 +175,36 @@ impl Target {
         old.delete();
     }
 
+    /// Request the target to upload its configuration to the server.
+    /// One can then use [`Target::config_data_hits`] to check that the client
+    /// uploaded its configuration and that it matches the one passed as `expected_config_data`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hawkbit_mock::ddi::ServerBuilder;
+    /// use serde_json::json;
+    ///
+    /// let server = ServerBuilder::default().build();
+    /// let target = server.add_target("Target1");
+    /// let expected_config_data = json!({
+    ///         "mode" : "merge",
+    ///         "data" : {
+    ///             "awesome" : true,
+    ///         },
+    ///         "status" : {
+    ///             "result" : {
+    ///             "finished" : "success"
+    ///             },
+    ///             "execution" : "closed",
+    ///             "details" : [ "Some stuffs" ]
+    ///         }
+    ///     });
+    /// target.request_config(expected_config_data);
+    ///
+    /// // Client handles the request and upload its configuration
+    /// //assert_eq!(target.config_data_hits(), 1);
+    /// ```
     pub fn request_config(&self, expected_config_data: Value) {
         let config_path = self
             .server
@@ -160,6 +229,39 @@ impl Target {
         self.update_poll();
     }
 
+    /// Push a deployment update to the target.
+    /// One can then use [`Target::config_data_hits`] to check that the client
+    /// retrieve the deployment details as expected.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use hawkbit_mock::ddi::{ServerBuilder, DeploymentBuilder};
+    /// use hawkbit::ddi::{Type, MaintenanceWindow};
+    ///
+    /// let server = ServerBuilder::default().build();
+    /// let target = server.add_target("Target1");
+    ///
+    /// let deployment = DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
+    ///    .maintenance_window(MaintenanceWindow::Available)
+    ///    .chunk(
+    ///       "app",
+    ///       "1.0",
+    ///        "some-chunk",
+    ///        vec![(
+    ///            Path::new("README.md").to_path_buf(),
+    ///            "42cf69051362d8fa2883cc9b56799fa4",
+    ///            "16da060b7ff443a6b3a7662ad21a9b3023c12627",
+    ///            "5010fbc2769bfc655d15aa9a883703d5b19a320732d37f70703ab3e3b416a602",
+    ///        )],
+    ///   )
+    ///    .build();
+    /// target.push_deployment(deployment);
+    ///
+    /// // Client handles the update and fetch details
+    /// //assert_eq!(target.deployment_hits(), 1);
+    /// ```
     pub fn push_deployment(&self, deploy: Deployment) {
         let deploy_path = self.server.url(format!(
             "/DEFAULT/controller/v1/{}/deploymentBase/{}",
@@ -207,6 +309,31 @@ impl Target {
         self.update_poll();
     }
 
+    /// Configure the server to expect feedback from the target.
+    /// One can then check the feedback has actually been received using
+    /// `hits()` on the returned object.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hawkbit_mock::ddi::{ServerBuilder, DeploymentBuilder};
+    /// use hawkbit::ddi::{Execution, Finished};
+    /// use serde_json::json;
+    ///
+    /// let server = ServerBuilder::default().build();
+    /// let target = server.add_target("Target1");
+    /// let mut mock = target.expect_feedback(
+    ///         "10",
+    ///         Execution::Closed,
+    ///         Finished::Success,
+    ///         Some(json!({"awesome": true})),
+    ///         vec!["Done"],
+    ///     );
+    /// assert_eq!(mock.hits(), 0);
+    ///
+    /// //Client send the feedback
+    /// //assert_eq!(mock.hits(), 1);
+    /// ```
     pub fn expect_feedback(
         &self,
         deployment_id: &str,
@@ -243,11 +370,13 @@ impl Target {
         })
     }
 
+    /// Return the number of times the poll API has been called by the client.
     pub fn poll_hits(&self) -> usize {
         let mock = MockRef::new(self.poll.get(), &self.server);
         mock.hits()
     }
 
+    /// Return the number of times the target configuration has been uploaded by the client.
     pub fn config_data_hits(&self) -> usize {
         self.config_data.borrow().as_ref().map_or(0, |m| {
             let mock = MockRef::new(m.mock, &self.server);
@@ -255,6 +384,7 @@ impl Target {
         })
     }
 
+    /// Return the number of times the deployment details have been fetched by the client.
     pub fn deployment_hits(&self) -> usize {
         self.deployment.borrow().as_ref().map_or(0, |m| {
             let mock = MockRef::new(m.mock, &self.server);
@@ -276,6 +406,7 @@ impl Drop for PendingAction {
     }
 }
 
+/// Builder of [`Deployment`].
 pub struct DeploymentBuilder {
     id: String,
     download_type: Type,
@@ -283,7 +414,9 @@ pub struct DeploymentBuilder {
     maintenance_window: Option<MaintenanceWindow>,
     chunks: Vec<Chunk>,
 }
+/// A pending deployment update pushed to the target.
 pub struct Deployment {
+    /// The id of the deployment
     pub id: String,
     download_type: Type,
     update_type: Type,
@@ -292,6 +425,7 @@ pub struct Deployment {
 }
 
 impl DeploymentBuilder {
+    /// Start building a new [`Deployment`].
     pub fn new(id: &str, download_type: Type, update_type: Type) -> Self {
         Self {
             id: id.to_string(),
@@ -302,12 +436,23 @@ impl DeploymentBuilder {
         }
     }
 
+    /// Set the maintenance window status of the deployment.
     pub fn maintenance_window(self, maintenance_window: MaintenanceWindow) -> Self {
         let mut builder = self;
         builder.maintenance_window = Some(maintenance_window);
         builder
     }
 
+    /// Add a new software chunk to the deployment.
+    /// # Arguments
+    /// * `part`: the type of chunk, e.g. `firmware`, `bundle`, `app`
+    /// * `version`: software version of the chunk
+    /// * `name`: name of the chunk
+    /// * `artifacts`: a [`Vec`] of tuples containing:
+    ///   * the local path of the file;
+    ///   * the `md5sum` of the file;
+    ///   * the `sha1sum` of the file;
+    ///   * the `sha256sum` of the file.
     pub fn chunk(
         self,
         part: &str,
@@ -336,6 +481,7 @@ impl DeploymentBuilder {
         builder
     }
 
+    /// Create the [`Deployment`].
     pub fn build(self) -> Deployment {
         Deployment {
             id: self.id,
@@ -347,6 +493,7 @@ impl DeploymentBuilder {
     }
 }
 
+/// Software chunk of an update.
 pub struct Chunk {
     part: String,
     version: String,
