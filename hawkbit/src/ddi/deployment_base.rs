@@ -160,7 +160,7 @@ impl Update {
         Ok(result)
     }
 
-    pub async fn send_feedback_with_progress<T: Serialize>(
+    async fn send_feedback_internal<T: Serialize>(
         &self,
         execution: Execution,
         finished: Finished,
@@ -196,13 +196,24 @@ impl Update {
         Ok(())
     }
 
+    pub async fn send_feedback_with_progress<T: Serialize>(
+        &self,
+        execution: Execution,
+        finished: Finished,
+        progress: T,
+        details: Vec<&str>,
+    ) -> Result<(), Error> {
+        self.send_feedback_internal(execution, finished, Some(progress), details)
+            .await
+    }
+
     pub async fn send_feedback(
         &self,
         execution: Execution,
         finished: Finished,
         details: Vec<&str>,
     ) -> Result<(), Error> {
-        self.send_feedback_with_progress::<bool>(execution, finished, None, details)
+        self.send_feedback_internal::<bool>(execution, finished, None, details)
             .await
     }
 }
