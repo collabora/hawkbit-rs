@@ -1,5 +1,5 @@
 // Copyright 2020-2021, Collabora Ltd.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! [Direct Device Integration](https://www.eclipse.org/hawkbit/apis/ddi_api/) API
 //!

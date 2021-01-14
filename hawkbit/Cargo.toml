@@ -5,7 +5,7 @@ authors = ["Guillaume Desmottes <guillaume.desmottes@collabora.com>"]
 edition = "2018"
 categories = ["api-bindings"]
 description = "Client side API to interact with Eclipse hawkBit"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 
 [dependencies]
