@@ -16,6 +16,7 @@ pub struct Client {
 }
 
 /// DDI errors
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum Error {
     /// URL error
