@@ -7,7 +7,7 @@ use anyhow::Result;
 use hawkbit::ddi::{Client, Execution, Finished};
 use serde::Serialize;
 use structopt::StructOpt;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "polling example")]
@@ -75,6 +75,6 @@ async fn main() -> Result<()> {
         }
 
         let t = reply.polling_sleep()?;
-        delay_for(t).await;
+        sleep(t).await;
     }
 }
