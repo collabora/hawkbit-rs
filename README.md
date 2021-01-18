@@ -1,4 +1,4 @@
-# hawkbitrs
+# hawkbitrs [![codecov](https://codecov.io/gh/collabora/hawkbit-rs/branch/main/graph/badge.svg?token=GRPKKE2XT5)](https://codecov.io/gh/collabora/hawkbit-rs) [![CI](https://github.com/collabora/hawkbit-rs/workflows/CI/badge.svg)](https://github.com/collabora/hawkbit-rs/actions)
 
 This module contains a couple of [Rust](https://www.rust-lang.org) crates
 to implement [Eclipse hawkBit](https://www.eclipse.org/hawkbit/) clients:
