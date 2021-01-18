@@ -8,6 +8,7 @@ description = "Mock server implementation of Eclipse hawkBit"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/collabora/hawkbit-rs"
+documentation = "https://docs.rs/hawkbit/"
 
 [dependencies]
 hawkbit = { version = "0.1", path = "../hawkbit/" }

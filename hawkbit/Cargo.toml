@@ -8,6 +8,7 @@ description = "Client side API to interact with Eclipse hawkBit"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/collabora/hawkbit-rs"
+documentation = "https://docs.rs/hawkbit_mock/"
 
 [dependencies]
 reqwest = { version = "0.10", features = ["json"] }
