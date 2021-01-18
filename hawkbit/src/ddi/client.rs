@@ -9,7 +9,7 @@ use url::Url;
 use crate::ddi::poll;
 
 /// [Direct Device Integration](https://www.eclipse.org/hawkbit/apis/ddi_api/) client.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     base_url: Url,
     client: reqwest::Client,
