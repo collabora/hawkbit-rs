@@ -387,11 +387,11 @@ cfg_if::cfg_if! {
             #[error("Failed to compute checksum")]
             Io(#[from] std::io::Error),
             #[error("Checksum {0} does not match")]
-            Invalid(CheckSumType),
+            Invalid(ChecksumType),
         }
 
         #[derive(Debug, strum::Display)]
-        pub enum CheckSumType {
+        pub enum ChecksumType {
             #[cfg(feature = "hash-md5")]
             Md5,
             #[cfg(feature = "hash-sha1")]
@@ -409,7 +409,7 @@ cfg_if::cfg_if! {
         {
             hasher: T,
             expected: String,
-            error: CheckSumType,
+            error: ChecksumType,
         }
 
         impl<T> DownloadHasher<T>
@@ -439,7 +439,7 @@ cfg_if::cfg_if! {
                 Self {
                     hasher: md5::Md5::new(),
                     expected,
-                    error: CheckSumType::Md5,
+                    error: ChecksumType::Md5,
                 }
             }
         }
@@ -450,7 +450,7 @@ cfg_if::cfg_if! {
                 Self {
                     hasher: sha1::Sha1::new(),
                     expected,
-                    error: CheckSumType::Sha1,
+                    error: ChecksumType::Sha1,
                 }
             }
         }
@@ -461,7 +461,7 @@ cfg_if::cfg_if! {
                 Self {
                     hasher: sha2::Sha256::new(),
                     expected,
-                    error: CheckSumType::Sha256,
+                    error: ChecksumType::Sha256,
                 }
             }
         }
