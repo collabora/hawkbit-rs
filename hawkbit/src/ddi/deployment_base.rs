@@ -378,24 +378,19 @@ pub struct DownloadedArtifact {
 cfg_if::cfg_if! {
     if #[cfg(feature = "hash-digest")] {
         use digest::Digest;
-        use thiserror::Error;
 
         const HASH_BUFFER_SIZE: usize = 4096;
 
-        #[derive(Error, Debug)]
-        pub enum ChecksumError {
-            #[error("Failed to compute checksum")]
-            Io(#[from] std::io::Error),
-            #[error("Checksum {0} does not match")]
-            Invalid(ChecksumType),
-        }
-
+        /// Enum representing the different type of supported checksums
         #[derive(Debug, strum::Display)]
         pub enum ChecksumType {
+            /// md5
             #[cfg(feature = "hash-md5")]
             Md5,
+            /// sha1
             #[cfg(feature = "hash-sha1")]
             Sha1,
+            /// sha256
             #[cfg(feature = "hash-sha256")]
             Sha256,
         }
@@ -422,13 +417,13 @@ cfg_if::cfg_if! {
                 self.hasher.update(data);
             }
 
-            fn finalize(self) -> Result<(), ChecksumError> {
+            fn finalize(self) -> Result<(), Error> {
                 let digest = self.hasher.finalize();
 
                 if format!("{:x}", digest) == self.expected {
                     Ok(())
                 } else {
-                    Err(ChecksumError::Invalid(self.error))
+                    Err(Error::ChecksumError(self.error))
                 }
             }
         }
@@ -479,7 +474,7 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    async fn hash<T>(&self, mut hasher: DownloadHasher<T>) -> Result<(), ChecksumError>
+    async fn hash<T>(&self, mut hasher: DownloadHasher<T>) -> Result<(), Error>
     where
         T: Digest,
         <T as Digest>::OutputSize: core::ops::Add,
@@ -503,21 +498,21 @@ impl<'a> DownloadedArtifact {
 
     /// Check if the md5sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-md5")]
-    pub async fn check_md5(&self) -> Result<(), ChecksumError> {
+    pub async fn check_md5(&self) -> Result<(), Error> {
         let hasher = DownloadHasher::new_md5(self.hashes.md5.clone());
         self.hash(hasher).await
     }
 
     /// Check if the sha1sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha1")]
-    pub async fn check_sha1(&self) -> Result<(), ChecksumError> {
+    pub async fn check_sha1(&self) -> Result<(), Error> {
         let hasher = DownloadHasher::new_sha1(self.hashes.sha1.clone());
         self.hash(hasher).await
     }
 
     /// Check if the sha256sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha256")]
-    pub async fn check_sha256(&self) -> Result<(), ChecksumError> {
+    pub async fn check_sha256(&self) -> Result<(), Error> {
         let hasher = DownloadHasher::new_sha256(self.hashes.sha256.clone());
         self.hash(hasher).await
     }

@@ -34,6 +34,10 @@ pub enum Error {
     /// IO error
     #[error("Failed to download update")]
     Io(#[from] std::io::Error),
+    /// Invalid checksum
+    #[cfg(feature = "hash-digest")]
+    #[error("Invalid Checksum")]
+    ChecksumError(crate::ddi::deployment_base::ChecksumType),
 }
 
 impl Client {
