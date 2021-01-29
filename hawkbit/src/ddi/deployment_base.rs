@@ -399,6 +399,72 @@ cfg_if::cfg_if! {
             #[cfg(feature = "hash-sha256")]
             Sha256,
         }
+
+        // quite complex trait bounds because of requirements so LowerHex is implemented on the output
+        struct DownloadHasher<T>
+        where
+            T: Digest,
+            <T as Digest>::OutputSize: core::ops::Add,
+            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+        {
+            hasher: T,
+            expected: String,
+            error: CheckSumType,
+        }
+
+        impl<T> DownloadHasher<T>
+        where
+            T: Digest,
+            <T as Digest>::OutputSize: core::ops::Add,
+            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>
+        {
+            fn update(&mut self, data: impl AsRef<[u8]>) {
+                self.hasher.update(data);
+            }
+
+            fn finalize(self) -> Result<(), ChecksumError> {
+                let digest = self.hasher.finalize();
+
+                if format!("{:x}", digest) == self.expected {
+                    Ok(())
+                } else {
+                    Err(ChecksumError::Invalid(self.error))
+                }
+            }
+        }
+
+        #[cfg(feature = "hash-md5")]
+        impl DownloadHasher<md5::Md5> {
+            fn new_md5(expected: String) -> Self {
+                Self {
+                    hasher: md5::Md5::new(),
+                    expected,
+                    error: CheckSumType::Md5,
+                }
+            }
+        }
+
+        #[cfg(feature = "hash-sha1")]
+        impl DownloadHasher<sha1::Sha1> {
+            fn new_sha1(expected: String) -> Self {
+                Self {
+                    hasher: sha1::Sha1::new(),
+                    expected,
+                    error: CheckSumType::Sha1,
+                }
+            }
+        }
+
+        #[cfg(feature = "hash-sha256")]
+        impl DownloadHasher<sha2::Sha256> {
+            fn new_sha256(expected: String) -> Self {
+                Self {
+                    hasher: sha2::Sha256::new(),
+                    expected,
+                    error: CheckSumType::Sha256,
+                }
+            }
+        }
     }
 }
 
@@ -413,7 +479,12 @@ impl<'a> DownloadedArtifact {
     }
 
     #[cfg(feature = "hash-digest")]
-    async fn hash<T: Digest>(&self, mut hasher: T) -> Result<digest::Output<T>, ChecksumError> {
+    async fn hash<T>(&self, mut hasher: DownloadHasher<T>) -> Result<(), ChecksumError>
+    where
+        T: Digest,
+        <T as Digest>::OutputSize: core::ops::Add,
+        <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+    {
         use tokio::io::AsyncReadExt;
 
         let mut file = File::open(&self.file).await?;
@@ -427,42 +498,27 @@ impl<'a> DownloadedArtifact {
             hasher.update(&buffer[..n]);
         }
 
-        Ok(hasher.finalize())
+        hasher.finalize()
     }
 
     /// Check if the md5sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-md5")]
     pub async fn check_md5(&self) -> Result<(), ChecksumError> {
-        let digest = self.hash(md5::Md5::new()).await?;
-
-        if format!("{:x}", digest) == self.hashes.md5 {
-            Ok(())
-        } else {
-            Err(ChecksumError::Invalid(CheckSumType::Md5))
-        }
+        let hasher = DownloadHasher::new_md5(self.hashes.md5.clone());
+        self.hash(hasher).await
     }
 
     /// Check if the sha1sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha1")]
     pub async fn check_sha1(&self) -> Result<(), ChecksumError> {
-        let digest = self.hash(sha1::Sha1::new()).await?;
-
-        if format!("{:x}", digest) == self.hashes.sha1 {
-            Ok(())
-        } else {
-            Err(ChecksumError::Invalid(CheckSumType::Sha1))
-        }
+        let hasher = DownloadHasher::new_sha1(self.hashes.sha1.clone());
+        self.hash(hasher).await
     }
 
     /// Check if the sha256sum of the downloaded file matches the one provided by the server.
     #[cfg(feature = "hash-sha256")]
     pub async fn check_sha256(&self) -> Result<(), ChecksumError> {
-        let digest = self.hash(sha2::Sha256::new()).await?;
-
-        if format!("{:x}", digest) == self.hashes.sha256 {
-            Ok(())
-        } else {
-            Err(ChecksumError::Invalid(CheckSumType::Sha256))
-        }
+        let hasher = DownloadHasher::new_sha256(self.hashes.sha256.clone());
+        self.hash(hasher).await
     }
 }
