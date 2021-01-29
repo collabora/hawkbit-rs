@@ -1,9 +1,13 @@
 // Copyright 2020, Collabora Ltd.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fs::File;
+use std::io::prelude::*;
 use std::{path::PathBuf, time::Duration};
 
-use hawkbit::ddi::{Client, Execution, Finished, MaintenanceWindow, Mode, Type};
+use bytes::Bytes;
+use futures::prelude::*;
+use hawkbit::ddi::{Client, Error, Execution, Finished, MaintenanceWindow, Mode, Type};
 use serde::Serialize;
 use serde_json::json;
 use tempdir::TempDir;
@@ -97,11 +101,17 @@ async fn upload_config() {
     assert_eq!(target.config_data_hits(), 1);
 }
 
-fn get_deployment() -> Deployment {
+fn artifact_path() -> PathBuf {
     let mut test_artifact = PathBuf::new();
     test_artifact.push("tests");
     test_artifact.push("data");
     test_artifact.push("test.txt");
+
+    test_artifact
+}
+
+fn get_deployment() -> Deployment {
+    let test_artifact = artifact_path();
 
     DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
         .maintenance_window(MaintenanceWindow::Available)
@@ -270,4 +280,43 @@ async fn config_then_deploy() {
     let reply = client.poll().await.expect("poll failed");
     assert!(reply.config_data_request().is_some());
     assert!(reply.update().is_some());
+}
+
+#[tokio::test]
+async fn download_stream() {
+    init();
+
+    let server = ServerBuilder::default().build();
+    let (client, target) = add_target(&server, "Target1");
+
+    target.push_deployment(get_deployment());
+    let reply = client.poll().await.expect("poll failed");
+
+    let update = reply.update().expect("missing update");
+    let update = update.fetch().await.expect("failed to fetch update info");
+    let chunk = update.chunks().next().unwrap();
+    let art = chunk.artifacts().next().unwrap();
+
+    async fn check_download(mut stream: Box<dyn Stream<Item = Result<Bytes, Error>> + Unpin>) {
+        let mut downloaded: Vec<u8> = Vec::new();
+        while let Some(b) = stream.next().await {
+            downloaded.extend(b.unwrap().as_ref());
+        }
+
+        // Compare downloaded content with the actual file
+        let mut art_file = File::open(&artifact_path()).expect("failed to open artifact");
+        let mut expected = Vec::new();
+        art_file
+            .read_to_end(&mut expected)
+            .expect("failed to read artifact");
+
+        assert_eq!(downloaded, expected);
+    }
+
+    // Download artifact using the stream API
+    let stream = art
+        .download_stream()
+        .await
+        .expect("failed to get download stream");
+    check_download(Box::new(stream)).await;
 }

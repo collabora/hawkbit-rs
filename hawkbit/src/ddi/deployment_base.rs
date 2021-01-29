@@ -5,7 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
-use reqwest::Client;
+use bytes::Bytes;
+use futures::{prelude::*, TryStreamExt};
+use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{DirBuilder, File},
@@ -319,15 +321,20 @@ impl<'a> Artifact<'a> {
         self.artifact.size
     }
 
-    /// Download the artifact file to the directory defined in `dir`.
-    pub async fn download(&'a self, dir: &Path) -> Result<DownloadedArtifact, Error> {
-        let mut resp = self
+    async fn download_response(&'a self) -> Result<Response, Error> {
+        let resp = self
             .client
             .get(&self.artifact.links.download_http.to_string())
             .send()
             .await?;
 
         resp.error_for_status_ref()?;
+        Ok(resp)
+    }
+
+    /// Download the artifact file to the directory defined in `dir`.
+    pub async fn download(&'a self, dir: &Path) -> Result<DownloadedArtifact, Error> {
+        let mut resp = self.download_response().await?;
 
         if !dir.exists() {
             DirBuilder::new().recursive(true).create(dir).await?;
@@ -345,6 +352,19 @@ impl<'a> Artifact<'a> {
             file_name,
             self.artifact.hashes.clone(),
         ))
+    }
+
+    /// Provide a `Stream` of `Bytes` to download the artifact.
+    ///
+    /// This can be used as an alternative to [`Artifact::download`],
+    /// for example, to extract an archive while it's being downloaded,
+    /// saving the need to store the archive file on disk.
+    pub async fn download_stream(
+        &'a self,
+    ) -> Result<impl Stream<Item = Result<Bytes, Error>>, Error> {
+        let resp = self.download_response().await?;
+
+        Ok(resp.bytes_stream().map_err(|e| e.into()))
     }
 }
 
