@@ -110,22 +110,23 @@ fn artifact_path() -> PathBuf {
     test_artifact
 }
 
-fn get_deployment() -> Deployment {
+fn get_deployment(valid_checksums: bool) -> Deployment {
     let test_artifact = artifact_path();
+
+    let artifacts = if valid_checksums {
+        vec![(
+            test_artifact,
+            "5eb63bbbe01eeed093cb22bb8f5acdc3",
+            "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+        )]
+    } else {
+        vec![(test_artifact, "badger", "badger", "badger")]
+    };
 
     DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
         .maintenance_window(MaintenanceWindow::Available)
-        .chunk(
-            "app",
-            "1.0",
-            "some-chunk",
-            vec![(
-                test_artifact,
-                "5eb63bbbe01eeed093cb22bb8f5acdc3",
-                "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-                "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
-            )],
-        )
+        .chunk("app", "1.0", "some-chunk", artifacts)
         .build()
 }
 
@@ -135,7 +136,7 @@ async fn deployment() {
 
     let server = ServerBuilder::default().build();
     let (client, target) = add_target(&server, "Target1");
-    target.push_deployment(get_deployment());
+    target.push_deployment(get_deployment(true));
 
     let reply = client.poll().await.expect("poll failed");
     assert!(reply.config_data_request().is_none());
@@ -188,7 +189,7 @@ async fn send_feedback() {
     init();
 
     let server = ServerBuilder::default().build();
-    let deploy = get_deployment();
+    let deploy = get_deployment(true);
     let deploy_id = deploy.id.clone();
     let (client, target) = add_target(&server, "Target1");
     target.push_deployment(deploy);
@@ -275,7 +276,7 @@ async fn config_then_deploy() {
     assert!(reply.update().is_none());
 
     // server pushes an update
-    target.push_deployment(get_deployment());
+    target.push_deployment(get_deployment(true));
 
     let reply = client.poll().await.expect("poll failed");
     assert!(reply.config_data_request().is_some());
@@ -289,7 +290,7 @@ async fn download_stream() {
     let server = ServerBuilder::default().build();
     let (client, target) = add_target(&server, "Target1");
 
-    target.push_deployment(get_deployment());
+    target.push_deployment(get_deployment(true));
     let reply = client.poll().await.expect("poll failed");
 
     let update = reply.update().expect("missing update");
@@ -347,6 +348,81 @@ async fn download_stream() {
                 .await
                 .expect("failed to get download stream");
             check_download(Box::new(stream)).await;
+        }
+    }
+}
+
+#[cfg(feature = "hash-digest")]
+#[tokio::test]
+async fn wrong_checksums() {
+    use assert_matches::assert_matches;
+    use hawkbit::ddi::ChecksumType;
+
+    init();
+
+    let server = ServerBuilder::default().build();
+    let (client, target) = add_target(&server, "Target1");
+
+    target.push_deployment(get_deployment(false));
+    let reply = client.poll().await.expect("poll failed");
+
+    let update = reply.update().expect("missing update");
+    let update = update.fetch().await.expect("failed to fetch update info");
+    let chunk = update.chunks().next().unwrap();
+    let art = chunk.artifacts().next().unwrap();
+
+    let out_dir = TempDir::new("test-hawkbitrs").expect("Failed to create temp dir");
+    let downloaded = art
+        .download(out_dir.path())
+        .await
+        .expect("failed to download artifact");
+
+    #[cfg(feature = "hash-md5")]
+    assert_matches!(
+        downloaded.check_md5().await,
+        Err(Error::ChecksumError(ChecksumType::Md5))
+    );
+    #[cfg(feature = "hash-sha1")]
+    assert_matches!(
+        downloaded.check_sha1().await,
+        Err(Error::ChecksumError(ChecksumType::Sha1))
+    );
+    #[cfg(feature = "hash-sha256")]
+    assert_matches!(
+        downloaded.check_sha256().await,
+        Err(Error::ChecksumError(ChecksumType::Sha256))
+    );
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-md5")] {
+            let stream = art
+                .download_stream_with_md5_check()
+                .await
+                .expect("failed to get download stream");
+            let end = stream.skip_while(|b| future::ready(b.is_ok())).next().await;
+            assert_matches!(end, Some(Err(Error::ChecksumError(ChecksumType::Md5))));
+        }
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-sha1")] {
+            let stream = art
+                .download_stream_with_sha1_check()
+                .await
+                .expect("failed to get download stream");
+            let end = stream.skip_while(|b| future::ready(b.is_ok())).next().await;
+            assert_matches!(end, Some(Err(Error::ChecksumError(ChecksumType::Sha1))));
+        }
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-sha256")] {
+            let stream = art
+                .download_stream_with_sha256_check()
+                .await
+                .expect("failed to get download stream");
+            let end = stream.skip_while(|b| future::ready(b.is_ok())).next().await;
+            assert_matches!(end, Some(Err(Error::ChecksumError(ChecksumType::Sha256))));
         }
     }
 }
