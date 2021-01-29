@@ -319,4 +319,34 @@ async fn download_stream() {
         .await
         .expect("failed to get download stream");
     check_download(Box::new(stream)).await;
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-md5")] {
+            let stream = art
+                .download_stream_with_md5_check()
+                .await
+                .expect("failed to get download stream");
+            check_download(Box::new(stream)).await;
+        }
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-sha1")] {
+            let stream = art
+                .download_stream_with_sha1_check()
+                .await
+                .expect("failed to get download stream");
+            check_download(Box::new(stream)).await;
+        }
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hash-sha256")] {
+            let stream = art
+                .download_stream_with_sha256_check()
+                .await
+                .expect("failed to get download stream");
+            check_download(Box::new(stream)).await;
+        }
+    }
 }

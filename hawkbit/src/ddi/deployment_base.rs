@@ -366,6 +366,63 @@ impl<'a> Artifact<'a> {
 
         Ok(resp.bytes_stream().map_err(|e| e.into()))
     }
+
+    /// Provide a `Stream` of `Bytes` to download the artifact while checking md5 checksum.
+    ///
+    /// The stream will yield the same data as [`Artifact::download_stream`] but will raise
+    /// an error if the md5sum of the downloaded data does not match the one provided by the server.
+    #[cfg(feature = "hash-md5")]
+    pub async fn download_stream_with_md5_check(
+        &'a self,
+    ) -> Result<impl Stream<Item = Result<Bytes, Error>>, Error> {
+        let stream = self.download_stream().await?;
+        let hasher = DownloadHasher::new_md5(self.artifact.hashes.md5.clone());
+
+        let stream = DownloadStreamHash {
+            stream: Box::new(stream),
+            hasher,
+        };
+
+        Ok(stream)
+    }
+
+    /// Provide a `Stream` of `Bytes` to download the artifact while checking sha1 checksum.
+    ///
+    /// The stream will yield the same data as [`Artifact::download_stream`] but will raise
+    /// an error if the sha1sum of the downloaded data does not match the one provided by the server.
+    #[cfg(feature = "hash-sha1")]
+    pub async fn download_stream_with_sha1_check(
+        &'a self,
+    ) -> Result<impl Stream<Item = Result<Bytes, Error>>, Error> {
+        let stream = self.download_stream().await?;
+        let hasher = DownloadHasher::new_sha1(self.artifact.hashes.sha1.clone());
+
+        let stream = DownloadStreamHash {
+            stream: Box::new(stream),
+            hasher,
+        };
+
+        Ok(stream)
+    }
+
+    /// Provide a `Stream` of `Bytes` to download the artifact while checking sha256 checksum.
+    ///
+    /// The stream will yield the same data as [`Artifact::download_stream`] but will raise
+    /// an error if the sha256sum of the downloaded data does not match the one provided by the server.
+    #[cfg(feature = "hash-sha256")]
+    pub async fn download_stream_with_sha256_check(
+        &'a self,
+    ) -> Result<impl Stream<Item = Result<Bytes, Error>>, Error> {
+        let stream = self.download_stream().await?;
+        let hasher = DownloadHasher::new_sha256(self.artifact.hashes.sha256.clone());
+
+        let stream = DownloadStreamHash {
+            stream: Box::new(stream),
+            hasher,
+        };
+
+        Ok(stream)
+    }
 }
 
 /// A downloaded file part of a [`Chunk`].
@@ -377,12 +434,16 @@ pub struct DownloadedArtifact {
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "hash-digest")] {
+        use std::{
+            pin::Pin,
+            task::Poll,
+        };
         use digest::Digest;
 
         const HASH_BUFFER_SIZE: usize = 4096;
 
         /// Enum representing the different type of supported checksums
-        #[derive(Debug, strum::Display)]
+        #[derive(Debug, strum::Display, Clone)]
         pub enum ChecksumType {
             /// md5
             #[cfg(feature = "hash-md5")]
@@ -396,6 +457,7 @@ cfg_if::cfg_if! {
         }
 
         // quite complex trait bounds because of requirements so LowerHex is implemented on the output
+        #[derive(Clone)]
         struct DownloadHasher<T>
         where
             T: Digest,
@@ -457,6 +519,52 @@ cfg_if::cfg_if! {
                     hasher: sha2::Sha256::new(),
                     expected,
                     error: ChecksumType::Sha256,
+                }
+            }
+        }
+
+        struct DownloadStreamHash<T>
+        where
+            T: Digest,
+            <T as Digest>::OutputSize: core::ops::Add,
+            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+        {
+            stream: Box<dyn Stream<Item = Result<Bytes, Error>> + Unpin + Send + Sync>,
+            hasher: DownloadHasher<T>,
+        }
+
+        impl<T> Stream for DownloadStreamHash<T>
+        where
+            T: Digest,
+            <T as Digest>::OutputSize: core::ops::Add,
+            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+            T: Unpin,
+            T: Clone,
+        {
+            type Item = Result<Bytes, Error>;
+
+            fn poll_next(
+                self: std::pin::Pin<&mut Self>,
+                cx: &mut std::task::Context<'_>,
+            ) -> std::task::Poll<Option<Self::Item>> {
+                let me = Pin::into_inner(self);
+
+                match Pin::new(&mut me.stream).poll_next(cx) {
+                    Poll::Ready(Some(Ok(data))) => {
+                        // feed data to the hasher and then pass them back to the stream
+                        me.hasher.update(&data);
+                        Poll::Ready(Some(Ok(data)))
+                    }
+                    Poll::Ready(None) => {
+                        // download is done, check the hash
+                        match me.hasher.clone().finalize() {
+                            Ok(_) => Poll::Ready(None),
+                            Err(e) => Poll::Ready(Some(Err(e))),
+                        }
+                    }
+                    // passthrough on errors and pendings
+                    Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+                    Poll::Pending => Poll::Pending,
                 }
             }
         }
