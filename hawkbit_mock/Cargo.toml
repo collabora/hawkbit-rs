@@ -1,6 +1,6 @@
 [package]
 name = "hawkbit_mock"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Guillaume Desmottes <guillaume.desmottes@collabora.com>"]
 edition = "2018"
 categories = ["development-tools::testing"]
@@ -11,7 +11,7 @@ repository = "https://github.com/collabora/hawkbit-rs"
 documentation = "https://docs.rs/hawkbit/"
 
 [dependencies]
-hawkbit = { version = "0.1", path = "../hawkbit/" }
+hawkbit = { version = "0.2", path = "../hawkbit/" }
 httpmock = "0.5.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
