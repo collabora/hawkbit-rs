@@ -284,6 +284,14 @@ impl<'a> Chunk<'a> {
             .map(move |a| Artifact::new(a, client.clone()))
     }
 
+    /// An iterator on all the metadata of the chunk.
+    pub fn metadata(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.chunk
+            .metadata
+            .iter()
+            .map(|a| (a.key.as_str(), a.value.as_str()))
+    }
+
     /// Download all artifacts of the chunk to the directory defined in `dir`.
     pub async fn download(&'a self, dir: &Path) -> Result<Vec<DownloadedArtifact>, Error> {
         let mut dir = dir.to_path_buf();
