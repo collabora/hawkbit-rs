@@ -128,7 +128,27 @@ fn get_deployment(valid_checksums: bool) -> Deployment {
 
     DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
         .maintenance_window(MaintenanceWindow::Available)
-        .chunk(ChunkProtocol::BOTH, "app", "1.0", "some-chunk", artifacts)
+        .chunk(
+            ChunkProtocol::BOTH,
+            "app-both",
+            "1.0",
+            "some-chunk",
+            artifacts.clone(),
+        )
+        .chunk(
+            ChunkProtocol::HTTP,
+            "app-http",
+            "1.0",
+            "some-chunk",
+            artifacts.clone(),
+        )
+        .chunk(
+            ChunkProtocol::HTTPS,
+            "app-https",
+            "1.0",
+            "some-chunk",
+            artifacts,
+        )
         .build()
 }
 
@@ -153,37 +173,49 @@ async fn deployment() {
         update.maintenance_window(),
         Some(MaintenanceWindow::Available)
     );
-    assert_eq!(update.chunks().count(), 1);
+    assert_eq!(update.chunks().count(), 3);
 
-    // Check chunk
-    let chunk = update.chunks().next().unwrap();
-    assert_eq!(chunk.part(), "app");
-    assert_eq!(chunk.version(), "1.0");
-    assert_eq!(chunk.name(), "some-chunk");
-    assert_eq!(chunk.artifacts().count(), 1);
+    let mut chunks = update.chunks();
+    for p in &[
+        ChunkProtocol::BOTH,
+        ChunkProtocol::HTTP,
+        ChunkProtocol::HTTPS,
+    ] {
+        // Check chunk
+        let chunk = chunks.next().unwrap();
+        let name = match p {
+            ChunkProtocol::BOTH => "app-both",
+            ChunkProtocol::HTTP => "app-http",
+            ChunkProtocol::HTTPS => "app-https",
+        };
+        assert_eq!(chunk.part(), name);
+        assert_eq!(chunk.version(), "1.0");
+        assert_eq!(chunk.name(), "some-chunk");
+        assert_eq!(chunk.artifacts().count(), 1);
 
-    let art = chunk.artifacts().next().unwrap();
-    assert_eq!(art.filename(), "test.txt");
-    assert_eq!(art.size(), 11);
+        let art = chunk.artifacts().next().unwrap();
+        assert_eq!(art.filename(), "test.txt");
+        assert_eq!(art.size(), 11);
 
-    let out_dir = TempDir::new("test-hawkbitrs").expect("Failed to create temp dir");
-    let artifacts = update
-        .download(out_dir.path())
-        .await
-        .expect("Failed to download update");
+        let out_dir = TempDir::new("test-hawkbitrs").expect("Failed to create temp dir");
+        let artifacts = chunk
+            .download(out_dir.path())
+            .await
+            .expect("Failed to download update");
 
-    // Check artifact
-    assert_eq!(artifacts.len(), 1);
-    let p = artifacts[0].file();
-    assert_eq!(p.file_name().unwrap(), "test.txt");
-    assert!(p.exists());
+        // Check artifact
+        assert_eq!(artifacts.len(), 1);
+        let p = artifacts[0].file();
+        assert_eq!(p.file_name().unwrap(), "test.txt");
+        assert!(p.exists());
 
-    #[cfg(feature = "hash-md5")]
-    artifacts[0].check_md5().await.expect("invalid md5");
-    #[cfg(feature = "hash-sha1")]
-    artifacts[0].check_sha1().await.expect("invalid sha1");
-    #[cfg(feature = "hash-sha256")]
-    artifacts[0].check_sha256().await.expect("invalid sha256");
+        #[cfg(feature = "hash-md5")]
+        artifacts[0].check_md5().await.expect("invalid md5");
+        #[cfg(feature = "hash-sha1")]
+        artifacts[0].check_sha1().await.expect("invalid sha1");
+        #[cfg(feature = "hash-sha256")]
+        artifacts[0].check_sha256().await.expect("invalid sha256");
+    }
 }
 
 #[tokio::test]
