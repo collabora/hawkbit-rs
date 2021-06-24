@@ -12,7 +12,9 @@ use serde::Serialize;
 use serde_json::json;
 use tempdir::TempDir;
 
-use hawkbit_mock::ddi::{Deployment, DeploymentBuilder, Server, ServerBuilder, Target};
+use hawkbit_mock::ddi::{
+    ChunkProtocol, Deployment, DeploymentBuilder, Server, ServerBuilder, Target,
+};
 
 fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
@@ -126,7 +128,7 @@ fn get_deployment(valid_checksums: bool) -> Deployment {
 
     DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
         .maintenance_window(MaintenanceWindow::Available)
-        .chunk("app", "1.0", "some-chunk", artifacts)
+        .chunk(ChunkProtocol::BOTH, "app", "1.0", "some-chunk", artifacts)
         .build()
 }
 

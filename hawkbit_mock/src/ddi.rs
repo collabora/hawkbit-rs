@@ -237,7 +237,7 @@ impl Target {
     ///
     /// ```
     /// use std::path::Path;
-    /// use hawkbit_mock::ddi::{ServerBuilder, DeploymentBuilder};
+    /// use hawkbit_mock::ddi::{ChunkProtocol, ServerBuilder, DeploymentBuilder};
     /// use hawkbit::ddi::{Type, MaintenanceWindow};
     ///
     /// let server = ServerBuilder::default().build();
@@ -246,6 +246,7 @@ impl Target {
     /// let deployment = DeploymentBuilder::new("10", Type::Forced, Type::Attempt)
     ///    .maintenance_window(MaintenanceWindow::Available)
     ///    .chunk(
+    ///       ChunkProtocol::BOTH,
     ///       "app",
     ///       "1.0",
     ///        "some-chunk",
@@ -414,6 +415,7 @@ pub struct DeploymentBuilder {
     maintenance_window: Option<MaintenanceWindow>,
     chunks: Vec<Chunk>,
 }
+
 /// A pending deployment update pushed to the target.
 pub struct Deployment {
     /// The id of the deployment
@@ -445,6 +447,7 @@ impl DeploymentBuilder {
 
     /// Add a new software chunk to the deployment.
     /// # Arguments
+    /// * `protocol`: The protocols over which chunks are downloadable
     /// * `part`: the type of chunk, e.g. `firmware`, `bundle`, `app`
     /// * `version`: software version of the chunk
     /// * `name`: name of the chunk
@@ -455,6 +458,7 @@ impl DeploymentBuilder {
     ///   * the `sha256sum` of the file.
     pub fn chunk(
         self,
+        protocol: ChunkProtocol,
         part: &str,
         version: &str,
         name: &str,
@@ -471,6 +475,7 @@ impl DeploymentBuilder {
             .collect();
 
         let chunk = Chunk {
+            protocol,
             part: part.to_string(),
             version: version.to_string(),
             name: name.to_string(),
@@ -493,8 +498,31 @@ impl DeploymentBuilder {
     }
 }
 
+/// Protocol(s) over which chunks are served
+pub enum ChunkProtocol {
+    /// both http and https
+    BOTH,
+    /// http only
+    HTTP,
+    /// https only
+    HTTPS,
+}
+
+impl ChunkProtocol {
+    /// Return whether the http protocol is used for downloads
+    pub fn http(&self) -> bool {
+        matches!(self, Self::BOTH | Self::HTTP)
+    }
+
+    /// Return whether the https protocol is used for downloads
+    pub fn https(&self) -> bool {
+        matches!(self, Self::BOTH | Self::HTTPS)
+    }
+}
+
 /// Software chunk of an update.
 pub struct Chunk {
+    protocol: ChunkProtocol,
     part: String,
     version: String,
     name: String,
@@ -513,6 +541,17 @@ impl Chunk {
                 // TODO: the md5 url is not served by the http server
                 let md5_url = format!("{}.MD5SUM", download_url);
 
+                let mut links = serde_json::Map::new();
+
+                if self.protocol.https() {
+                    links.insert("download".to_string(), json!({ "href": download_url }));
+                    links.insert("md5sum".to_string(), json!({ "href": md5_url }));
+                }
+                if self.protocol.http() {
+                    links.insert("download-http".to_string(), json!({ "href": download_url }));
+                    links.insert("md5sum-http".to_string(), json!({ "href": md5_url }));
+                }
+
                 json!({
                     "filename": file_name,
                     "hashes": {
@@ -521,20 +560,7 @@ impl Chunk {
                         "sha256": sha256,
                     },
                     "size": meta.len(),
-                    "_links": {
-                        "download": {
-                            "href": download_url,
-                        },
-                        "download-http": {
-                            "href": download_url,
-                        },
-                        "md5sum": {
-                            "href": md5_url,
-                        },
-                        "md5sum-http": {
-                            "href": md5_url,
-                        },
-                    }
+                    "_links": links,
                 })
             })
             .collect();
