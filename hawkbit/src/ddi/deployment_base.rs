@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use futures::{prelude::*, TryStreamExt};
 use reqwest::{Client, Response};
+use serde::de::{Deserializer, Error as _, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Serialize};
+
 use tokio::{
     fs::{DirBuilder, File},
     io::AsyncWriteExt,
@@ -114,12 +116,93 @@ struct Hashes {
     sha256: String,
 }
 
-#[derive(Debug, Deserialize)]
+impl<'de> Deserialize<'de> for Links {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = Links;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "a map")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut download: Option<Link> = None;
+                let mut md5sum: Option<Link> = None;
+                let mut download_http: Option<Link> = None;
+                let mut md5sum_http: Option<Link> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "download" => {
+                            download = match download {
+                                Some(_) => return Err(A::Error::duplicate_field("download")),
+                                None => Some(map.next_value()?),
+                            };
+                        }
+                        "md5sum" => {
+                            md5sum = match md5sum {
+                                Some(_) => return Err(A::Error::duplicate_field("md5sum")),
+                                None => Some(map.next_value()?),
+                            };
+                        }
+                        "download-http" => {
+                            download_http = match download_http {
+                                Some(_) => return Err(A::Error::duplicate_field("download-http")),
+                                None => Some(map.next_value()?),
+                            };
+                        }
+                        "md5sum-http" => {
+                            md5sum_http = match md5sum_http {
+                                Some(_) => return Err(A::Error::duplicate_field("md5sum-http")),
+                                None => Some(map.next_value()?),
+                            };
+                        }
+                        _ => {
+                            map.next_value::<IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                let https = download.map(|content| Download { content, md5sum });
+                let http = download_http.map(|content| Download {
+                    content,
+                    md5sum: md5sum_http,
+                });
+
+                if http.is_none() && https.is_none() {
+                    Err(A::Error::missing_field("download or download-http"))
+                } else {
+                    Ok(Links { http, https })
+                }
+            }
+        }
+
+        let visitor = V;
+
+        deserializer.deserialize_map(visitor)
+    }
+}
+
+#[derive(Debug)]
+struct Download {
+    content: Link,
+    md5sum: Option<Link>,
+}
+
+/// Download links a single artifact, at least one of http or https will be
+/// Some
+#[derive(Debug)]
 struct Links {
-    #[serde(rename = "download-http")]
-    download_http: Link,
-    #[serde(rename = "md5sum-http")]
-    md5sum_http: Link,
+    http: Option<Download>,
+    https: Option<Download>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -330,9 +413,17 @@ impl<'a> Artifact<'a> {
     }
 
     async fn download_response(&'a self) -> Result<Response, Error> {
+        let download = self
+            .artifact
+            .links
+            .https
+            .as_ref()
+            .or_else(|| self.artifact.links.http.as_ref())
+            .expect("Missing content link in for artifact");
+
         let resp = self
             .client
-            .get(&self.artifact.links.download_http.to_string())
+            .get(&download.content.to_string())
             .send()
             .await?;
 
