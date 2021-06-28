@@ -460,3 +460,41 @@ async fn wrong_checksums() {
         }
     }
 }
+
+#[tokio::test]
+async fn cancel_action() {
+    init();
+
+    let server = ServerBuilder::default().build();
+    let (client, target) = add_target(&server, "Target1");
+    target.cancel_action("10");
+
+    let reply = client.poll().await.expect("poll failed");
+    assert!(reply.config_data_request().is_none());
+    assert!(reply.update().is_none());
+    let cancel_action = reply.cancel_action().expect("missing cancel action");
+
+    let id = cancel_action
+        .id()
+        .await
+        .expect("failed to fetch cancel action id");
+    assert_eq!(id, "10");
+
+    assert_eq!(target.poll_hits(), 1);
+    assert_eq!(target.cancel_action_hits(), 1);
+
+    let mut mock = target.expect_cancel_feedback(
+        &id,
+        Execution::Proceeding,
+        Finished::None,
+        vec!["Cancelling"],
+    );
+    assert_eq!(mock.hits(), 0);
+
+    cancel_action
+        .send_feedback(Execution::Proceeding, Finished::None, vec!["Cancelling"])
+        .await
+        .expect("Failed to send feedback");
+    assert_eq!(mock.hits(), 1);
+    mock.delete();
+}

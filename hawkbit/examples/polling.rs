@@ -74,6 +74,20 @@ async fn main() -> Result<()> {
                 .await?;
         }
 
+        if let Some(cancel_action) = reply.cancel_action() {
+            println!("Action to cancel: {}", cancel_action.id().await?);
+
+            cancel_action
+                .send_feedback(Execution::Proceeding, Finished::None, vec!["Cancelling"])
+                .await?;
+
+            cancel_action
+                .send_feedback(Execution::Closed, Finished::Success, vec![])
+                .await?;
+
+            println!("Action cancelled");
+        }
+
         let t = reply.polling_sleep()?;
         sleep(t).await;
     }

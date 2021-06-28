@@ -8,6 +8,7 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::Deserialize;
 
+use crate::ddi::cancel_action::CancelAction;
 use crate::ddi::client::Error;
 use crate::ddi::common::Link;
 use crate::ddi::config_data::ConfigRequest;
@@ -72,6 +73,17 @@ impl Reply {
                 .deployment_base
                 .as_ref()
                 .map(|l| UpdatePreFetch::new(self.client.clone(), l.to_string())),
+            None => None,
+        }
+    }
+
+    /// Returns pending cancel action, if any.
+    pub fn cancel_action(&self) -> Option<CancelAction> {
+        match &self.reply.links {
+            Some(links) => links
+                .cancel_action
+                .as_ref()
+                .map(|l| CancelAction::new(self.client.clone(), l.to_string())),
             None => None,
         }
     }
