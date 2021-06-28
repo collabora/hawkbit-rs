@@ -104,13 +104,14 @@ pub struct Target {
     poll: Cell<usize>,
     config_data: RefCell<Option<PendingAction>>,
     deployment: RefCell<Option<PendingAction>>,
+    cancel_action: RefCell<Option<PendingAction>>,
 }
 
 impl Target {
     fn new(name: &str, server: &Rc<MockServer>, tenant: &str) -> Self {
         let key = format!("Key{}", name);
 
-        let poll = Self::create_poll(server, tenant, name, &key, None, None);
+        let poll = Self::create_poll(server, tenant, name, &key, None, None, None);
         Target {
             name: name.to_string(),
             key,
@@ -119,6 +120,7 @@ impl Target {
             poll: Cell::new(poll),
             config_data: RefCell::new(None),
             deployment: RefCell::new(None),
+            cancel_action: RefCell::new(None),
         }
     }
 
@@ -129,6 +131,7 @@ impl Target {
         key: &str,
         expected_config_data: Option<&PendingAction>,
         deployment: Option<&PendingAction>,
+        cancel_action: Option<&PendingAction>,
     ) -> usize {
         let mut links = Map::new();
 
@@ -137,6 +140,9 @@ impl Target {
         }
         if let Some(pending) = deployment {
             links.insert("deploymentBase".into(), json!({ "href": pending.path }));
+        }
+        if let Some(pending) = cancel_action {
+            links.insert("cancelAction".into(), json!({ "href": pending.path }));
         }
 
         let response = json!({
@@ -169,6 +175,7 @@ impl Target {
             &self.key,
             self.config_data.borrow().as_ref(),
             self.deployment.borrow().as_ref(),
+            self.cancel_action.borrow().as_ref(),
         ));
 
         let mut old = MockRef::new(old, &self.server);
@@ -381,6 +388,115 @@ impl Target {
         })
     }
 
+    /// Push a cancel action update to the target.
+    /// One can then use [`Target::cancel_action_hits`] to check that the client
+    /// fetched the details about the cancel action.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hawkbit_mock::ddi::ServerBuilder;
+    ///
+    /// let server = ServerBuilder::default().build();
+    /// let target = server.add_target("Target1");
+    /// target.cancel_action("5");
+    ///
+    /// // Client fetches details about the cancel action
+    /// //assert_eq!(target.cancel_action_hits(), 1);
+    /// ```
+    pub fn cancel_action(&self, id: &str) {
+        let cancel_path = self.server.url(format!(
+            "/DEFAULT/controller/v1/{}/cancelAction/{}",
+            self.name, id
+        ));
+
+        let response = json!({
+            "id": id,
+            "cancelAction": {
+                "stopId": id
+            }
+        });
+
+        let cancel_mock = self.server.mock(|when, then| {
+            when.method(GET)
+                .path(format!(
+                    "/DEFAULT/controller/v1/{}/cancelAction/{}",
+                    self.name, id
+                ))
+                .header("Authorization", &format!("TargetToken {}", self.key));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(response);
+        });
+
+        self.cancel_action.replace(Some(PendingAction {
+            server: self.server.clone(),
+            path: cancel_path,
+            mock: cancel_mock.id(),
+        }));
+
+        self.update_poll();
+    }
+
+    /// Configure the server to expect cancel feedback from the target.
+    /// One can then check the feedback has actually been received using
+    /// `hits()` on the returned object.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hawkbit_mock::ddi::{ServerBuilder, DeploymentBuilder};
+    /// use hawkbit::ddi::{Execution, Finished};
+    /// use serde_json::json;
+    ///
+    /// let server = ServerBuilder::default().build();
+    /// let target = server.add_target("Target1");
+    /// target.cancel_action("10");
+    ///
+    /// let mut mock = target.expect_cancel_feedback(
+    ///         "10",
+    ///         Execution::Closed,
+    ///         Finished::Success,
+    ///         vec!["Cancelled"],
+    ///     );
+    /// assert_eq!(mock.hits(), 0);
+    ///
+    /// //Client send the feedback
+    /// //assert_eq!(mock.hits(), 1);
+    /// ```
+    pub fn expect_cancel_feedback(
+        &self,
+        cancel_id: &str,
+        execution: Execution,
+        finished: Finished,
+        details: Vec<&str>,
+    ) -> MockRef<'_> {
+        self.server.mock(|when, then| {
+            let expected = json!({
+                "id": cancel_id,
+                "status": {
+                    "result": {
+                        "finished": finished
+                    },
+                    "execution": execution,
+                    "details": details,
+                },
+            });
+
+            when.method(POST)
+                .path(format!(
+                    "/{}/controller/v1/{}/cancelAction/{}/feedback",
+                    self.tenant, self.name, cancel_id
+                ))
+                .header("Authorization", &format!("TargetToken {}", self.key))
+                .header("Content-Type", "application/json")
+                .json_body(expected);
+
+            then.status(200);
+        })
+    }
+
     /// Return the number of times the poll API has been called by the client.
     pub fn poll_hits(&self) -> usize {
         let mock = MockRef::new(self.poll.get(), &self.server);
@@ -398,6 +514,14 @@ impl Target {
     /// Return the number of times the deployment details have been fetched by the client.
     pub fn deployment_hits(&self) -> usize {
         self.deployment.borrow().as_ref().map_or(0, |m| {
+            let mock = MockRef::new(m.mock, &self.server);
+            mock.hits()
+        })
+    }
+
+    /// Return the number of times the cancel action URL has been fetched by the client.
+    pub fn cancel_action_hits(&self) -> usize {
+        self.cancel_action.borrow().as_ref().map_or(0, |m| {
             let mock = MockRef::new(m.mock, &self.server);
             mock.hits()
         })

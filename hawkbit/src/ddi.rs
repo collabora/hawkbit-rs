@@ -13,6 +13,7 @@
 
 // FIXME: set link to hawbit/examples/polling.rs once we have the final public repo
 
+mod cancel_action;
 mod client;
 mod common;
 mod config_data;
@@ -20,6 +21,7 @@ mod deployment_base;
 mod feedback;
 mod poll;
 
+pub use cancel_action::CancelAction;
 pub use client::{Client, Error};
 pub use common::{Execution, Finished};
 pub use config_data::{ConfigRequest, Mode};
