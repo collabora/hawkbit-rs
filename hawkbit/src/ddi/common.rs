@@ -3,7 +3,12 @@
 
 use std::fmt;
 
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use url::Url;
+
+use crate::ddi::client::Error;
+use crate::ddi::feedback::Feedback;
 
 #[derive(Debug, Deserialize)]
 pub struct Link {
@@ -45,4 +50,37 @@ pub enum Finished {
     Failure,
     /// Operation is still in-progress
     None,
+}
+
+pub(crate) async fn send_feedback_internal<T: Serialize>(
+    client: &Client,
+    url: &str,
+    id: &str,
+    execution: Execution,
+    finished: Finished,
+    progress: Option<T>,
+    details: Vec<&str>,
+) -> Result<(), Error> {
+    let mut url: Url = url.parse()?;
+    {
+        match url.path_segments_mut() {
+            Err(_) => {
+                return Err(Error::ParseUrlError(
+                    url::ParseError::SetHostOnCannotBeABaseUrl,
+                ))
+            }
+            Ok(mut paths) => {
+                paths.push("feedback");
+            }
+        }
+    }
+    url.set_query(None);
+
+    let details = details.iter().map(|m| m.to_string()).collect();
+    let feedback = Feedback::new(id, execution, finished, progress, details);
+
+    let reply = client.post(&url.to_string()).json(&feedback).send().await?;
+    reply.error_for_status()?;
+
+    Ok(())
 }

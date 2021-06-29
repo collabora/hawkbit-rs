@@ -15,11 +15,9 @@ use tokio::{
     fs::{DirBuilder, File},
     io::AsyncWriteExt,
 };
-use url::Url;
 
 use crate::ddi::client::Error;
-use crate::ddi::common::{Execution, Finished, Link};
-use crate::ddi::feedback::Feedback;
+use crate::ddi::common::{send_feedback_internal, Execution, Finished, Link};
 
 #[derive(Debug)]
 /// A pending update whose details have not been retrieved yet.
@@ -262,42 +260,6 @@ impl Update {
         Ok(result)
     }
 
-    async fn send_feedback_internal<T: Serialize>(
-        &self,
-        execution: Execution,
-        finished: Finished,
-        progress: Option<T>,
-        details: Vec<&str>,
-    ) -> Result<(), Error> {
-        let mut url: Url = self.url.parse()?;
-        {
-            match url.path_segments_mut() {
-                Err(_) => {
-                    return Err(Error::ParseUrlError(
-                        url::ParseError::SetHostOnCannotBeABaseUrl,
-                    ))
-                }
-                Ok(mut paths) => {
-                    paths.push("feedback");
-                }
-            }
-        }
-        url.set_query(None);
-
-        let details = details.iter().map(|m| m.to_string()).collect();
-        let feedback = Feedback::new(&self.info.id, execution, finished, progress, details);
-
-        let reply = self
-            .client
-            .post(&url.to_string())
-            .json(&feedback)
-            .send()
-            .await?;
-        reply.error_for_status()?;
-
-        Ok(())
-    }
-
     /// Send feedback to server about this update, with custom progress information.
     ///
     /// # Arguments
@@ -312,8 +274,16 @@ impl Update {
         progress: T,
         details: Vec<&str>,
     ) -> Result<(), Error> {
-        self.send_feedback_internal(execution, finished, Some(progress), details)
-            .await
+        send_feedback_internal(
+            &self.client,
+            &self.url,
+            &self.info.id,
+            execution,
+            finished,
+            Some(progress),
+            details,
+        )
+        .await
     }
 
     /// Send feedback to server about this update.
@@ -325,8 +295,16 @@ impl Update {
         finished: Finished,
         details: Vec<&str>,
     ) -> Result<(), Error> {
-        self.send_feedback_internal::<bool>(execution, finished, None, details)
-            .await
+        send_feedback_internal::<bool>(
+            &self.client,
+            &self.url,
+            &self.info.id,
+            execution,
+            finished,
+            None,
+            details,
+        )
+        .await
     }
 }
 
