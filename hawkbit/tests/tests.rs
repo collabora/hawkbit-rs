@@ -219,7 +219,7 @@ async fn deployment() {
 }
 
 #[tokio::test]
-async fn send_feedback() {
+async fn send_deployment_feedback() {
     init();
 
     let server = ServerBuilder::default().build();
@@ -233,7 +233,7 @@ async fn send_feedback() {
     let update = update.fetch().await.expect("failed to fetch update info");
 
     // Send feedback without progress
-    let mut mock = target.expect_feedback(
+    let mut mock = target.expect_deployment_feedback(
         &deploy_id,
         Execution::Proceeding,
         Finished::None,
@@ -250,7 +250,7 @@ async fn send_feedback() {
     mock.delete();
 
     // Send feedback with progress
-    let mut mock = target.expect_feedback(
+    let mut mock = target.expect_deployment_feedback(
         &deploy_id,
         Execution::Closed,
         Finished::Success,
