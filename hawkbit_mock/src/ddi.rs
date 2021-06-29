@@ -343,20 +343,30 @@ impl Target {
         progress: Option<serde_json::Value>,
         details: Vec<&str>,
     ) -> MockRef<'_> {
-        let progress = progress.unwrap_or(serde_json::Value::Null);
-
         self.server.mock(|when, then| {
-            let expected = json!({
-                "id": deployment_id,
-                "status": {
-                    "result": {
-                        "progress": progress,
-                        "finished": finished
+            let expected = match progress {
+                Some(progress) => json!({
+                    "id": deployment_id,
+                    "status": {
+                        "result": {
+                            "progress": progress,
+                            "finished": finished
+                        },
+                        "execution": execution,
+                        "details": details,
                     },
-                    "execution": execution,
-                    "details": details,
-                },
-            });
+                }),
+                None => json!({
+                    "id": deployment_id,
+                    "status": {
+                        "result": {
+                            "finished": finished
+                        },
+                        "execution": execution,
+                        "details": details,
+                    },
+                }),
+            };
 
             when.method(POST)
                 .path(format!(
