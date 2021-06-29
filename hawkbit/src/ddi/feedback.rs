@@ -22,6 +22,7 @@ struct Status<T: Serialize> {
 #[derive(Debug, Serialize)]
 pub struct ResultT<T: Serialize> {
     finished: Finished,
+    #[serde(skip_serializing_if = "Option::is_none")]
     progress: Option<T>,
 }
 
