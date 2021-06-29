@@ -310,7 +310,7 @@ impl Target {
         self.update_poll();
     }
 
-    /// Configure the server to expect feedback from the target.
+    /// Configure the server to expect deployment feedback from the target.
     /// One can then check the feedback has actually been received using
     /// `hits()` on the returned object.
     ///
@@ -323,7 +323,7 @@ impl Target {
     ///
     /// let server = ServerBuilder::default().build();
     /// let target = server.add_target("Target1");
-    /// let mut mock = target.expect_feedback(
+    /// let mut mock = target.expect_deployment_feedback(
     ///         "10",
     ///         Execution::Closed,
     ///         Finished::Success,
@@ -335,7 +335,7 @@ impl Target {
     /// //Client send the feedback
     /// //assert_eq!(mock.hits(), 1);
     /// ```
-    pub fn expect_feedback(
+    pub fn expect_deployment_feedback(
         &self,
         deployment_id: &str,
         execution: Execution,
