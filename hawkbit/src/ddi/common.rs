@@ -63,16 +63,10 @@ pub(crate) async fn send_feedback_internal<T: Serialize>(
 ) -> Result<(), Error> {
     let mut url: Url = url.parse()?;
     {
-        match url.path_segments_mut() {
-            Err(_) => {
-                return Err(Error::ParseUrlError(
-                    url::ParseError::SetHostOnCannotBeABaseUrl,
-                ))
-            }
-            Ok(mut paths) => {
-                paths.push("feedback");
-            }
-        }
+        let mut paths = url
+            .path_segments_mut()
+            .map_err(|_| url::ParseError::SetHostOnCannotBeABaseUrl)?;
+        paths.push("feedback");
     }
     url.set_query(None);
 
