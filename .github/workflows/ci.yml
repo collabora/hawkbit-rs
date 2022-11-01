@@ -92,3 +92,13 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           files: ./coverage.lcov
+
+  semver:
+    name: semverver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v1
+        with:
+          crate-name: hawkbit
