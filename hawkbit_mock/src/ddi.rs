@@ -30,7 +30,7 @@ use std::{
 
 use httpmock::{
     Method::{GET, POST, PUT},
-    MockRef, MockRefExt, MockServer,
+    Mock, MockExt, MockServer,
 };
 use serde_json::{json, Map, Value};
 
@@ -178,7 +178,7 @@ impl Target {
             self.cancel_action.borrow().as_ref(),
         ));
 
-        let mut old = MockRef::new(old, &self.server);
+        let mut old = Mock::new(old, &self.server);
         old.delete();
     }
 
@@ -349,7 +349,7 @@ impl Target {
         finished: Finished,
         progress: Option<serde_json::Value>,
         details: Vec<&str>,
-    ) -> MockRef<'_> {
+    ) -> Mock<'_> {
         self.server.mock(|when, then| {
             let expected = match progress {
                 Some(progress) => json!({
@@ -471,7 +471,7 @@ impl Target {
         execution: Execution,
         finished: Finished,
         details: Vec<&str>,
-    ) -> MockRef<'_> {
+    ) -> Mock<'_> {
         self.server.mock(|when, then| {
             let expected = json!({
                 "id": cancel_id,
@@ -499,14 +499,14 @@ impl Target {
 
     /// Return the number of times the poll API has been called by the client.
     pub fn poll_hits(&self) -> usize {
-        let mock = MockRef::new(self.poll.get(), &self.server);
+        let mock = Mock::new(self.poll.get(), &self.server);
         mock.hits()
     }
 
     /// Return the number of times the target configuration has been uploaded by the client.
     pub fn config_data_hits(&self) -> usize {
         self.config_data.borrow().as_ref().map_or(0, |m| {
-            let mock = MockRef::new(m.mock, &self.server);
+            let mock = Mock::new(m.mock, &self.server);
             mock.hits()
         })
     }
@@ -514,7 +514,7 @@ impl Target {
     /// Return the number of times the deployment details have been fetched by the client.
     pub fn deployment_hits(&self) -> usize {
         self.deployment.borrow().as_ref().map_or(0, |m| {
-            let mock = MockRef::new(m.mock, &self.server);
+            let mock = Mock::new(m.mock, &self.server);
             mock.hits()
         })
     }
@@ -522,7 +522,7 @@ impl Target {
     /// Return the number of times the cancel action URL has been fetched by the client.
     pub fn cancel_action_hits(&self) -> usize {
         self.cancel_action.borrow().as_ref().map_or(0, |m| {
-            let mock = MockRef::new(m.mock, &self.server);
+            let mock = Mock::new(m.mock, &self.server);
             mock.hits()
         })
     }
@@ -536,7 +536,7 @@ struct PendingAction {
 
 impl Drop for PendingAction {
     fn drop(&mut self) {
-        let mut mock = MockRef::new(self.mock, &self.server);
+        let mut mock = Mock::new(self.mock, &self.server);
         mock.delete();
     }
 }

@@ -48,6 +48,7 @@ struct Reply {
     id: String,
     deployment: Deployment,
     #[serde(rename = "actionHistory")]
+    #[allow(dead_code)]
     action_history: Option<ActionHistory>,
 }
 
@@ -61,7 +62,7 @@ struct Deployment {
 }
 
 /// How the download or update should be processed by the target.
-#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     /// Do not process yet
@@ -73,7 +74,7 @@ pub enum Type {
 }
 
 /// Separation of download and installation by defining a maintenance window for the installation.
-#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum MaintenanceWindow {
     /// Maintenance window is available
@@ -109,8 +110,11 @@ struct ArtifactInternal {
 
 #[derive(Debug, Deserialize, Clone)]
 struct Hashes {
+    #[cfg(feature = "hash-sha1")]
     sha1: String,
+    #[cfg(feature = "hash-md5")]
     md5: String,
+    #[cfg(feature = "hash-sha256")]
     sha256: String,
 }
 
@@ -192,6 +196,7 @@ impl<'de> Deserialize<'de> for Links {
 #[derive(Debug)]
 struct Download {
     content: Link,
+    #[allow(dead_code)]
     md5sum: Option<Link>,
 }
 
@@ -205,8 +210,10 @@ struct Links {
 
 #[derive(Debug, Deserialize)]
 struct ActionHistory {
+    #[allow(dead_code)]
     status: String,
     #[serde(default)]
+    #[allow(dead_code)]
     messages: Vec<String>,
 }
 
@@ -396,7 +403,7 @@ impl<'a> Artifact<'a> {
             .links
             .https
             .as_ref()
-            .or_else(|| self.artifact.links.http.as_ref())
+            .or(self.artifact.links.http.as_ref())
             .expect("Missing content link in for artifact");
 
         let resp = self
@@ -506,6 +513,7 @@ impl<'a> Artifact<'a> {
 #[derive(Debug)]
 pub struct DownloadedArtifact {
     file: PathBuf,
+    #[allow(dead_code)]
     hashes: Hashes,
 }
 
@@ -516,6 +524,7 @@ cfg_if::cfg_if! {
             task::Poll,
         };
         use digest::Digest;
+        use digest::OutputSizeUser;
 
         const HASH_BUFFER_SIZE: usize = 4096;
 
@@ -538,8 +547,9 @@ cfg_if::cfg_if! {
         struct DownloadHasher<T>
         where
             T: Digest,
-            <T as Digest>::OutputSize: core::ops::Add,
-            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+            <T as OutputSizeUser>::OutputSize: core::ops::Add,
+            <<T as OutputSizeUser>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+
         {
             hasher: T,
             expected: String,
@@ -549,8 +559,8 @@ cfg_if::cfg_if! {
         impl<T> DownloadHasher<T>
         where
             T: Digest,
-            <T as Digest>::OutputSize: core::ops::Add,
-            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>
+            <T as OutputSizeUser>::OutputSize: core::ops::Add,
+            <<T as OutputSizeUser>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
         {
             fn update(&mut self, data: impl AsRef<[u8]>) {
                 self.hasher.update(data);
@@ -603,8 +613,8 @@ cfg_if::cfg_if! {
         struct DownloadStreamHash<T>
         where
             T: Digest,
-            <T as Digest>::OutputSize: core::ops::Add,
-            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+            <T as OutputSizeUser>::OutputSize: core::ops::Add,
+            <<T as OutputSizeUser>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
         {
             stream: Box<dyn Stream<Item = Result<Bytes, Error>> + Unpin + Send + Sync>,
             hasher: DownloadHasher<T>,
@@ -613,10 +623,10 @@ cfg_if::cfg_if! {
         impl<T> Stream for DownloadStreamHash<T>
         where
             T: Digest,
-            <T as Digest>::OutputSize: core::ops::Add,
-            <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
             T: Unpin,
             T: Clone,
+            <T as OutputSizeUser>::OutputSize: core::ops::Add,
+            <<T as OutputSizeUser>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
         {
             type Item = Result<Bytes, Error>;
 
@@ -648,7 +658,7 @@ cfg_if::cfg_if! {
     }
 }
 
-impl<'a> DownloadedArtifact {
+impl DownloadedArtifact {
     fn new(file: PathBuf, hashes: Hashes) -> Self {
         Self { file, hashes }
     }
@@ -662,8 +672,9 @@ impl<'a> DownloadedArtifact {
     async fn hash<T>(&self, mut hasher: DownloadHasher<T>) -> Result<(), Error>
     where
         T: Digest,
-        <T as Digest>::OutputSize: core::ops::Add,
-        <<T as Digest>::OutputSize as core::ops::Add>::Output: generic_array::ArrayLength<u8>,
+        <T as OutputSizeUser>::OutputSize: core::ops::Add,
+        <<T as OutputSizeUser>::OutputSize as core::ops::Add>::Output:
+            generic_array::ArrayLength<u8>,
     {
         use tokio::io::AsyncReadExt;
 

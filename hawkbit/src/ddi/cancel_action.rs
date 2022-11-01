@@ -65,6 +65,7 @@ impl CancelAction {
 
 #[derive(Debug, Deserialize)]
 struct CancelReply {
+    #[allow(dead_code)]
     id: String,
     #[serde(rename = "cancelAction")]
     cancel_action: CancelActionReply,
