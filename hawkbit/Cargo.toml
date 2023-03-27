@@ -11,7 +11,7 @@ repository = "https://github.com/collabora/hawkbit-rs"
 documentation = "https://docs.rs/hawkbit_mock/"
 
 [dependencies]
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "0.11", default-features=false, features = ["json", "stream"] }
 tokio = { version = "1.1", features = ["time", "fs"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -37,6 +37,11 @@ tempdir = "0.3"
 assert_matches = "1.4"
 
 [features]
+default = ["native-tls"]
+
+native-tls = ["reqwest/default-tls"]
+use-rustls = ["reqwest/rustls-tls-manual-roots"]
+
 hash-digest= ["digest", "generic-array"]
 hash-md5 = ["md-5", "hash-digest"]
 hash-sha1 = ["sha-1", "hash-digest"]
