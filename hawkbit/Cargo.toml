@@ -40,7 +40,7 @@ assert_matches = "1.4"
 default = ["native-tls"]
 
 native-tls = ["reqwest/default-tls"]
-use-rustls = ["reqwest/rustls-tls-manual-roots"]
+use-rustls = ["reqwest/rustls-tls"]
 
 hash-digest= ["digest", "generic-array"]
 hash-md5 = ["md-5", "hash-digest"]
