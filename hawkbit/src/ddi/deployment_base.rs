@@ -223,6 +223,14 @@ impl Update {
         Self { client, info, url }
     }
 
+    /// The id of the deployment action.
+    ///
+    /// This is relevant to extract to make sure upcoming requests are relevant
+    /// for the pending action and report error if it is not.
+    pub fn id(&self) -> String {
+        self.info.id.clone()
+    }
+
     /// Handling for the download part of the provisioning process.
     pub fn download_type(&self) -> Type {
         self.info.deployment.download
