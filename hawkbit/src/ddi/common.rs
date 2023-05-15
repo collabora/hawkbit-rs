@@ -32,6 +32,10 @@ pub enum Execution {
     Proceeding,
     /// This is send by the target as confirmation of a cancellation request by the update server.
     Canceled,
+    /// This can be used by the target to inform that it will start downloading
+    Download,
+    /// This can be used by the target to inform that it finished downloading
+    Downloaded,
     /// This can be used by the target to inform that it scheduled on the action.
     Scheduled,
     /// This is send by the target in case an update of a cancellation is rejected, i.e. cannot be fulfilled at this point in time.
