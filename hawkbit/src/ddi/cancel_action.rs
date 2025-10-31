@@ -63,6 +63,7 @@ impl CancelAction {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct CancelReply {
     id: String,

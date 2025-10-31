@@ -12,6 +12,7 @@ use crate::ddi::cancel_action::CancelAction;
 use crate::ddi::client::Error;
 use crate::ddi::common::Link;
 use crate::ddi::config_data::ConfigRequest;
+use crate::ddi::confirmation_base::ConfirmationRequest;
 use crate::ddi::deployment_base::UpdatePreFetch;
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +35,8 @@ pub struct Links {
     config_data: Option<Link>,
     #[serde(rename = "deploymentBase")]
     deployment_base: Option<Link>,
+    #[serde(rename = "confirmationBase")]
+    confirmation_base: Option<Link>,
     #[serde(rename = "cancelAction")]
     cancel_action: Option<Link>,
 }
@@ -73,6 +76,17 @@ impl Reply {
                 .deployment_base
                 .as_ref()
                 .map(|l| UpdatePreFetch::new(self.client.clone(), l.to_string())),
+            None => None,
+        }
+    }
+
+    /// Returns pending confirmations, if any.
+    pub fn confirmation_base(&self) -> Option<ConfirmationRequest> {
+        match &self.reply.links {
+            Some(links) => links
+                .confirmation_base
+                .as_ref()
+                .map(|l| ConfirmationRequest::new(self.client.clone(), l.to_string())),
             None => None,
         }
     }

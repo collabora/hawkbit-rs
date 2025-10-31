@@ -17,6 +17,7 @@ mod cancel_action;
 mod client;
 mod common;
 mod config_data;
+mod confirmation_base;
 mod deployment_base;
 mod feedback;
 mod poll;
@@ -25,6 +26,7 @@ pub use cancel_action::CancelAction;
 pub use client::{Client, Error};
 pub use common::{Execution, Finished};
 pub use config_data::{ConfigRequest, Mode};
+pub use confirmation_base::{ConfirmationInfo, ConfirmationRequest, ConfirmationResponse};
 #[cfg(feature = "hash-digest")]
 pub use deployment_base::ChecksumType;
 pub use deployment_base::{

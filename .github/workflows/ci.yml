@@ -82,10 +82,10 @@ jobs:
           command: test
           args: --all-features --no-fail-fast
         env:
-          RUSTFLAGS: "-Zinstrument-coverage"
+          RUSTFLAGS: "-C instrument-coverage"
           LLVM_PROFILE_FILE: "hawkbitrs-%p-%m.profraw"
       - name: Install grcov
-        run: if [[ ! -e ~/.cargo/bin/grcov ]]; then cargo install grcov; fi
+        run: cargo install grcov
       - name: Run grcov
         run: grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "hawkbit/examples/*" --ignore "*target*" -o coverage.lcov
       - name: Upload coverage to Codecov
